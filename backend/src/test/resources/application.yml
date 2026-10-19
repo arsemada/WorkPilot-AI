@@ -1,0 +1,46 @@
+spring:
+  config:
+    import: "optional:classpath:test-empty.properties"
+  application:
+    name: workpilot-ai-test
+  datasource:
+    url: jdbc:h2:mem:workpilot_test_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: 0
+  servlet:
+    session:
+      cookie:
+        name: WORKPILOT_SESSION
+        http-only: true
+        same-site: lax
+        secure: false
+
+workpilot:
+  cors:
+    allowed-origins: http://localhost:3000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
