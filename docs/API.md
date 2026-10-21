@@ -1,6 +1,6 @@
 # WorkPilot AI API
 
-Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
+Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Documents can be uploaded, searched, downloaded, and deleted inside an organization. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
 
 The API base URL for local development is `http://localhost:8081`.
 
@@ -159,6 +159,21 @@ Status changes on update:
 | `CANCELLED` | `TODO` |
 
 A patch may keep the current status. Any other change returns `400`. Send `null` for `description`, `dueDate`, or `assigneeId` to clear that field. Omitted fields stay unchanged.
+
+### Documents
+
+Documents are organization resources. A caller who is not a member receives `404`. A member without the required permission receives `403`.
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/organizations/{organizationId}/documents` | `RESOURCE_CREATE` | Upload a file as `multipart/form-data` with `file`, `title`, and optional `description` |
+| `GET` | `/api/organizations/{organizationId}/documents` | `RESOURCE_READ` | List documents with search, sorting, and pagination |
+| `GET` | `/api/organizations/{organizationId}/documents/{documentId}` | `RESOURCE_READ` | Read document metadata, including a short text preview when text was indexed |
+| `GET` | `/api/organizations/{organizationId}/documents/{documentId}/content` | `RESOURCE_READ` | Download the stored file |
+| `PATCH` | `/api/organizations/{organizationId}/documents/{documentId}` | `RESOURCE_UPDATE` | Update `title` and `description`. Send `null` to clear the description |
+| `DELETE` | `/api/organizations/{organizationId}/documents/{documentId}` | `RESOURCE_DELETE` | Delete the record and the stored file |
+
+Accepted extensions are `.pdf`, `.txt`, `.csv`, `.md`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.docx`. The maximum size is 10 MB. Text, CSV, and Markdown contents are indexed for `q`. Search also matches title, description, and file name. `page` defaults to `0`, `size` defaults to `20` with a maximum of `100`, and `sort` may be `createdAt`, `updatedAt`, `title`, `originalFileName`, or `sizeBytes`.
 
 ### Health
 

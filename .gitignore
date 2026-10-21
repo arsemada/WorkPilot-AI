@@ -29,6 +29,9 @@ out/
 # Backend build output
 target/
 
+# Uploaded organization documents
+data/documents/
+
 # Logs and temporary files
 *.log
 logs/

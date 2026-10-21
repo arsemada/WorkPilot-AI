@@ -123,3 +123,59 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   return (await response.json()) as T;
 }
+
+export async function apiFormRequest<T>(path: string, body: FormData, retried = false): Promise<T> {
+  const token = await loadCsrf();
+  let response: Response;
+  try {
+    response = await fetch(`${browserApiBaseUrl()}${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        [token.headerName]: token.token,
+      },
+      body,
+    });
+  } catch {
+    throw new ApiError(0, "The server could not be reached. Check that the backend is running.");
+  }
+
+  if (response.status === 403 && !retried) {
+    clearCsrfToken();
+    return apiFormRequest<T>(path, body, true);
+  }
+
+  if (response.status === 401) {
+    unauthorizedHandler?.();
+  }
+
+  if (!response.ok) {
+    throw await readError(response);
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function apiDownload(path: string): Promise<Blob> {
+  let response: Response;
+  try {
+    response = await fetch(`${browserApiBaseUrl()}${path}`, {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "*/*" },
+    });
+  } catch {
+    throw new ApiError(0, "The server could not be reached. Check that the backend is running.");
+  }
+
+  if (response.status === 401) {
+    unauthorizedHandler?.();
+  }
+
+  if (!response.ok) {
+    throw await readError(response);
+  }
+
+  return response.blob();
+}

@@ -109,6 +109,38 @@ export type TaskWriteRequest = {
   assigneeId?: string | null;
 };
 
+export type OrganizationDocument = {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  originalFileName: string;
+  contentType: string;
+  sizeBytes: number;
+  textIndexed: boolean;
+  textPreview: string | null;
+  uploadedById: string;
+  uploadedByName: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DocumentPage = {
+  items: OrganizationDocument[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
+export type DocumentListQuery = {
+  q?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+  direction?: "asc" | "desc";
+};
+
 export type TaskListQuery = {
   status?: TaskStatus | "";
   priority?: TaskPriority | "";
