@@ -70,3 +70,55 @@ export type ErrorBody = {
 export type MessageResponse = {
   message: string;
 };
+
+export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
+
+export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+
+export type Task = {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string | null;
+  createdById: string;
+  createdByName: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  permittedStatuses: TaskStatus[];
+};
+
+export type TaskPage = {
+  items: Task[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
+export type TaskWriteRequest = {
+  title: string;
+  description?: string | null;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  dueDate?: string | null;
+  assigneeId?: string | null;
+};
+
+export type TaskListQuery = {
+  status?: TaskStatus | "";
+  priority?: TaskPriority | "";
+  assigneeId?: string;
+  unassigned?: boolean;
+  dueAfter?: string;
+  dueBefore?: string;
+  q?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+  direction?: "asc" | "desc";
+};

@@ -1,4 +1,4 @@
-import type { FormEvent, InputHTMLAttributes, ReactNode } from "react";
+import type { FormEvent, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 export function Form({
@@ -17,33 +17,32 @@ export function Form({
   );
 }
 
-type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
+const controlClass =
+  "block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 shadow-sm placeholder:text-slate-500";
+
+function describedBy(id: string, hint?: string, error?: string) {
+  return [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ");
+}
+
+function FieldChrome({
+  id,
+  label,
+  hint,
+  error,
+  children,
+}: {
+  id: string;
   label: string;
-  error?: string;
   hint?: string;
-};
-
-export function TextField({ id, label, error, hint, className, ...props }: TextFieldProps) {
-  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null]
-    .filter(Boolean)
-    .join(" ");
-
+  error?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="block text-sm font-medium text-slate-900">
         {label}
       </label>
-      <input
-        id={id}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy || undefined}
-        className={cn(
-          "block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 shadow-sm placeholder:text-slate-500",
-          error ? "border-red-700" : "",
-          className,
-        )}
-        {...props}
-      />
+      {children}
       {hint ? (
         <p id={`${id}-hint`} className="text-sm text-slate-700">
           {hint}
@@ -55,6 +54,68 @@ export function TextField({ id, label, error, hint, className, ...props }: TextF
         </p>
       ) : null}
     </div>
+  );
+}
+
+type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  error?: string;
+  hint?: string;
+};
+
+export function TextField({ id, label, error, hint, className, ...props }: TextFieldProps) {
+  return (
+    <FieldChrome id={id ?? ""} label={label} hint={hint} error={error}>
+      <input
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id ?? "", hint, error) || undefined}
+        className={cn(controlClass, error ? "border-red-700" : "", className)}
+        {...props}
+      />
+    </FieldChrome>
+  );
+}
+
+type TextAreaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  label: string;
+  error?: string;
+  hint?: string;
+};
+
+export function TextAreaField({ id, label, error, hint, className, ...props }: TextAreaProps) {
+  return (
+    <FieldChrome id={id ?? ""} label={label} hint={hint} error={error}>
+      <textarea
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id ?? "", hint, error) || undefined}
+        className={cn(controlClass, "min-h-24", error ? "border-red-700" : "", className)}
+        {...props}
+      />
+    </FieldChrome>
+  );
+}
+
+type SelectFieldProps = SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string;
+  error?: string;
+  hint?: string;
+};
+
+export function SelectField({ id, label, error, hint, className, children, ...props }: SelectFieldProps) {
+  return (
+    <FieldChrome id={id ?? ""} label={label} hint={hint} error={error}>
+      <select
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id ?? "", hint, error) || undefined}
+        className={cn(controlClass, error ? "border-red-700" : "", className)}
+        {...props}
+      >
+        {children}
+      </select>
+    </FieldChrome>
   );
 }
 

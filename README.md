@@ -1,6 +1,6 @@
 # WorkPilot AI
 
-WorkPilot AI is an AI-powered business operations platform. The backend supports accounts, organizations, memberships, and cookie-based sessions. The frontend provides the application shell, sign-in, and registration against that API. Task management, documents, dashboards, and AI features are not implemented yet.
+WorkPilot AI is an AI-powered business operations platform. Accounts, organizations, cookie sessions, and task management are in place. Documents, dashboard metrics, the AI assistant, and workflows are not implemented yet.
 
 ## Technology stack
 
@@ -124,6 +124,7 @@ Migrations:
 | --- | --- |
 | `V1__initial_schema.sql` | `users`, `organizations`, and `organization_memberships` |
 | `V2__membership_role_check.sql` | Restricts membership roles to `OWNER`, `ADMIN`, and `MEMBER` |
+| `V3__tasks.sql` | Organization tasks, with status and priority checks |
 
 ## Health checks
 
@@ -161,13 +162,28 @@ Public routes are `/login` and `/register`. `/` sends a signed-in user to `/dash
 | Route | Page |
 | --- | --- |
 | `/dashboard` | Placeholder for later metrics, plus the organizations on the current session |
-| `/tasks` | Placeholder |
+| `/tasks` | Task list, filters, create, edit, status changes, and delete |
 | `/documents` | Placeholder |
 | `/assistant` | Placeholder |
 | `/workflows` | Placeholder |
 | `/settings` | Placeholder |
 
 Registration calls `POST /api/auth/register`, then `POST /api/auth/login`. The API does not start a session during registration. Sign-out calls `POST /api/auth/logout`. Reloading the page calls `GET /api/auth/me` and keeps the user in the shell while the session cookie is still valid.
+
+## Tasks
+
+Tasks belong to one organization. Create, read, and update use the resource permissions held by every role. Delete uses `RESOURCE_DELETE`, so owners and admins can delete tasks and members cannot.
+
+A new task defaults to status `TODO` and priority `MEDIUM`. Creation may choose any status. Later status changes follow this lifecycle:
+
+| From | Allowed next statuses |
+| --- | --- |
+| `TODO` | `IN_PROGRESS`, `CANCELLED` |
+| `IN_PROGRESS` | `TODO`, `DONE`, `CANCELLED` |
+| `DONE` | `IN_PROGRESS` |
+| `CANCELLED` | `TODO` |
+
+An assignee must be an active member of the same organization. The Tasks page lists, filters, searches, and pages tasks from `GET /api/organizations/{organizationId}/tasks`. The contract is in [docs/API.md](docs/API.md).
 
 Frontend checks from `frontend/`:
 

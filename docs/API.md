@@ -1,6 +1,6 @@
 # WorkPilot AI API
 
-Phase 1 exposes account, organization, and membership operations. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
+Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
 
 The API base URL for local development is `http://localhost:8081`.
 
@@ -106,6 +106,59 @@ Add member body:
 ```
 
 `role` is `OWNER`, `ADMIN`, or `MEMBER`.
+
+### Tasks
+
+Tasks are organization resources. A caller who is not a member receives `404`. A member without the required permission receives `403`.
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/organizations/{organizationId}/tasks` | `RESOURCE_CREATE` | Create a task. Status defaults to `TODO` and priority to `MEDIUM` |
+| `GET` | `/api/organizations/{organizationId}/tasks` | `RESOURCE_READ` | List tasks with filters, search, sorting, and pagination |
+| `GET` | `/api/organizations/{organizationId}/tasks/{taskId}` | `RESOURCE_READ` | Read one task |
+| `PATCH` | `/api/organizations/{organizationId}/tasks/{taskId}` | `RESOURCE_UPDATE` | Update the fields present in the body |
+| `DELETE` | `/api/organizations/{organizationId}/tasks/{taskId}` | `RESOURCE_DELETE` | Delete a task |
+
+Create body:
+
+```json
+{
+  "title": "Prepare the launch brief",
+  "description": "Share it with the team",
+  "status": "TODO",
+  "priority": "HIGH",
+  "dueDate": "2026-11-01",
+  "assigneeId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+`description`, `status`, `priority`, `dueDate`, and `assigneeId` are optional. `assigneeId` must be an active member of the same organization.
+
+List query parameters:
+
+| Parameter | Meaning |
+| --- | --- |
+| `status` | `TODO`, `IN_PROGRESS`, `DONE`, or `CANCELLED` |
+| `priority` | `LOW`, `MEDIUM`, `HIGH`, or `URGENT` |
+| `assigneeId` | Tasks assigned to that member |
+| `unassigned` | `true` returns tasks with no assignee. Do not combine it with `assigneeId` |
+| `dueAfter`, `dueBefore` | Inclusive due-date bounds, `YYYY-MM-DD`. Tasks without a due date are excluded |
+| `q` | Case-insensitive match on title or description, up to 200 characters |
+| `page` | Zero-based page, default `0` |
+| `size` | Page size from 1 to 100, default `20` |
+| `sort` | `createdAt`, `updatedAt`, `dueDate`, `title`, `priority`, or `status` |
+| `direction` | `asc` or `desc`, default `desc` |
+
+Status changes on update:
+
+| From | Permitted targets |
+| --- | --- |
+| `TODO` | `IN_PROGRESS`, `CANCELLED` |
+| `IN_PROGRESS` | `TODO`, `DONE`, `CANCELLED` |
+| `DONE` | `IN_PROGRESS` |
+| `CANCELLED` | `TODO` |
+
+A patch may keep the current status. Any other change returns `400`. Send `null` for `description`, `dueDate`, or `assigneeId` to clear that field. Omitted fields stay unchanged.
 
 ### Health
 

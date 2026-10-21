@@ -6,7 +6,7 @@ export type NavItem = {
 
 export const navigation: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", description: "Overview placeholder" },
-  { href: "/tasks", label: "Tasks", description: "Task management placeholder" },
+  { href: "/tasks", label: "Tasks", description: "Task list and assignment" },
   { href: "/documents", label: "Documents", description: "Document processing placeholder" },
   { href: "/assistant", label: "AI Assistant", description: "Assistant placeholder" },
   { href: "/workflows", label: "Workflows", description: "Workflow placeholder" },
