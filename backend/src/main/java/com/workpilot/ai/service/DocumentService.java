@@ -6,6 +6,7 @@ import com.workpilot.ai.domain.Document;
 import com.workpilot.ai.domain.IndexingStatus;
 import com.workpilot.ai.domain.Permission;
 import com.workpilot.ai.domain.ProcessingStatus;
+import com.workpilot.ai.domain.WorkflowEventType;
 import com.workpilot.ai.domain.OrganizationMembership;
 import com.workpilot.ai.dto.DocumentPageResponse;
 import com.workpilot.ai.dto.DocumentResponse;
@@ -17,6 +18,7 @@ import com.workpilot.ai.repository.DocumentChunkRepository;
 import com.workpilot.ai.repository.DocumentRepository;
 import com.workpilot.ai.repository.DocumentSpecifications;
 import com.workpilot.ai.security.OrganizationAccessService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -79,6 +81,7 @@ public class DocumentService {
     private final DocumentProcessor documentProcessor;
     private final DocumentIndexer documentIndexer;
     private final AiProperties aiProperties;
+    private final ApplicationEventPublisher eventPublisher;
 
     public DocumentService(
             DocumentRepository documentRepository,
@@ -88,7 +91,8 @@ public class DocumentService {
             OrganizationAccessService accessService,
             DocumentProcessor documentProcessor,
             DocumentIndexer documentIndexer,
-            AiProperties aiProperties) {
+            AiProperties aiProperties,
+            ApplicationEventPublisher eventPublisher) {
         this.documentRepository = documentRepository;
         this.chunkRepository = chunkRepository;
         this.documentStorage = documentStorage;
@@ -97,6 +101,7 @@ public class DocumentService {
         this.documentProcessor = documentProcessor;
         this.documentIndexer = documentIndexer;
         this.aiProperties = aiProperties;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -135,12 +140,15 @@ public class DocumentService {
         document.setIndexingStatus(IndexingStatus.SKIPPED);
         try {
             Document saved = documentRepository.save(document);
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    documentProcessor.enqueue(organizationId, documentId);
-                }
-            });
+            eventPublisher.publishEvent(new WorkflowTrigger(
+                    organizationId,
+                    WorkflowEventType.DOCUMENT_UPLOADED,
+                    membership.getUser().getId(),
+                    null,
+                    null,
+                    documentId,
+                    null,
+                    0));
             return present(saved);
         } catch (RuntimeException exception) {
             documentStorage.delete(storageKey);

@@ -9,7 +9,7 @@ export const navigation: NavItem[] = [
   { href: "/tasks", label: "Tasks", description: "Task list and assignment" },
   { href: "/documents", label: "Documents", description: "Organization document library" },
   { href: "/assistant", label: "AI Assistant", description: "Conversations with the assistant" },
-  { href: "/workflows", label: "Workflows", description: "Workflow placeholder" },
+  { href: "/workflows", label: "Workflows", description: "Workflow rules, history, and notifications" },
   { href: "/settings", label: "Settings", description: "Settings placeholder" },
 ];
 

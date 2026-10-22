@@ -59,6 +59,12 @@ workpilot:
     vector-store: ${VECTOR_STORE:pgvector}
     max-tool-calls: 3
     tool-budget: 15s
+  workflow:
+    retry-backoff: 1m
+    overdue-cron: "0 0 8 * * *"
+    activity-cron: "0 15 8 * * *"
+    retry-delay-ms: 60000
+    retry-initial-delay-ms: 60000
 
 management:
   endpoints:

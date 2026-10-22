@@ -7,6 +7,7 @@ import com.workpilot.ai.domain.Task;
 import com.workpilot.ai.domain.TaskPriority;
 import com.workpilot.ai.domain.TaskStatus;
 import com.workpilot.ai.domain.User;
+import com.workpilot.ai.domain.WorkflowEventType;
 import com.workpilot.ai.dto.CreateTaskRequest;
 import com.workpilot.ai.dto.TaskPageResponse;
 import com.workpilot.ai.dto.TaskResponse;
@@ -17,6 +18,7 @@ import com.workpilot.ai.repository.OrganizationMembershipRepository;
 import com.workpilot.ai.repository.TaskRepository;
 import com.workpilot.ai.repository.TaskSpecifications;
 import com.workpilot.ai.security.OrganizationAccessService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -52,16 +54,19 @@ public class TaskService {
     private final OrganizationMembershipRepository membershipRepository;
     private final OrganizationAccessService accessService;
     private final ActivityRecorder activityRecorder;
+    private final ApplicationEventPublisher eventPublisher;
 
     public TaskService(
             TaskRepository taskRepository,
             OrganizationMembershipRepository membershipRepository,
             OrganizationAccessService accessService,
-            ActivityRecorder activityRecorder) {
+            ActivityRecorder activityRecorder,
+            ApplicationEventPublisher eventPublisher) {
         this.taskRepository = taskRepository;
         this.membershipRepository = membershipRepository;
         this.accessService = accessService;
         this.activityRecorder = activityRecorder;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -92,6 +97,9 @@ public class TaskService {
                     saved.getId(),
                     ActivityType.TASK_COMPLETED,
                     "completed \"" + saved.getTitle() + "\"");
+        }
+        if (saved.getAssignee() != null) {
+            publishAssignment(organizationId, membership.getUser().getId(), saved);
         }
         return TaskResponse.fromEntity(saved);
     }
@@ -267,6 +275,9 @@ public class TaskService {
             } else {
                 task.setAssignee(requireEligibleAssignee(organizationId, request.getAssigneeId()));
             }
+            if (savedAssigneeChanged(previousAssigneeId, task)) {
+                publishAssignment(organizationId, authorized.membership().getUser().getId(), task);
+            }
         }
         Task saved = taskRepository.save(task);
         if (statusChanged && saved.getStatus() == TaskStatus.DONE) {
@@ -307,6 +318,23 @@ public class TaskService {
                 id,
                 ActivityType.TASK_DELETED,
                 "deleted \"" + title + "\"");
+    }
+
+    private void publishAssignment(UUID organizationId, UUID actorId, Task task) {
+        eventPublisher.publishEvent(new WorkflowTrigger(
+                organizationId,
+                WorkflowEventType.TASK_ASSIGNED,
+                actorId,
+                task.getId(),
+                task.getAssignee().getId(),
+                null,
+                task.getDueDate(),
+                0));
+    }
+
+    private static boolean savedAssigneeChanged(UUID previousAssigneeId, Task task) {
+        UUID nextAssigneeId = task.getAssignee() == null ? null : task.getAssignee().getId();
+        return nextAssigneeId != null && !nextAssigneeId.equals(previousAssigneeId);
     }
 
     private AuthorizedTask requireTask(UUID organizationId, UUID taskId, Permission permission) {

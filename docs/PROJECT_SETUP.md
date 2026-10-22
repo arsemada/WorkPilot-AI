@@ -80,7 +80,7 @@ Resolved Maven and npm dependency versions are recorded after verification in th
 
 - Phase 1 replaced the temporary permit-all filter with cookie sessions, BCrypt passwords, and organization roles. See [API.md](API.md).
 - Flyway owns the schema. The initial tables are users, organizations, and organization memberships.
-- Document text extraction and embedding run in the backend. The assistant calls OpenAI when `OPENAI_API_KEY` is set and can cite indexed document passages. Workflows remain a placeholder.
+- Document text extraction and embedding run in the backend. The assistant calls OpenAI when `OPENAI_API_KEY` is set and can cite indexed document passages. Workflow rules notify assignees, process uploads, and send a daily activity summary.
 - Actuator health details are visible without authentication.
 - The local development password lives only in gitignored `.env` files, but `.env.example` contains the obvious placeholder `change-me`.
 - Host execution uses JDK 25 because JDK 21 is not installed. The compiled target and the container runtime are Java 21.

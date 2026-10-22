@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { unreadNotificationCount } from "@/lib/api/notifications";
 import { navigation, titleForPath } from "@/components/shell/navigation";
 import { rememberReturnPath } from "@/lib/return-path";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
-function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarNav({ unread, onNavigate }: { unread: number; onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -25,11 +26,14 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             aria-current={active ? "page" : undefined}
             onClick={onNavigate}
             className={cn(
-              "rounded-md px-3 py-2 text-sm font-medium",
+              "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm font-medium",
               active ? "bg-blue-50 text-blue-900" : "text-slate-800 hover:bg-slate-100",
             )}
           >
-            {item.label}
+            <span>{item.label}</span>
+            {item.href === "/workflows" && unread > 0 ? (
+              <span className="rounded-full bg-blue-700 px-2 py-0.5 text-xs font-semibold text-white">{unread}</span>
+            ) : null}
           </Link>
         );
       })}
@@ -53,9 +57,40 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
   const [mobilePath, setMobilePath] = useState<string | null>(null);
   const mobileOpen = mobilePath === pathname;
+  const [unread, setUnread] = useState(0);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const closeLogout = useCallback(() => setConfirmLogout(false), []);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const result = await unreadNotificationCount();
+        if (!cancelled) {
+          setUnread(result.count);
+        }
+      } catch {
+        if (!cancelled) {
+          setUnread(0);
+        }
+      }
+    }
+    const start = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    const interval = window.setInterval(() => {
+      void refresh();
+    }, 30000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(start);
+      window.clearInterval(interval);
+    };
+  }, [user, pathname]);
 
   useEffect(() => {
     if (!mobileOpen) {
@@ -97,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
         <Brand />
-        <SidebarNav />
+        <SidebarNav unread={unread} />
       </aside>
       {mobileOpen ? (
         <div className="fixed inset-0 z-40 md:hidden">
@@ -109,7 +144,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           />
           <div id="mobile-navigation" className="relative flex h-full w-72 flex-col bg-white shadow-lg">
             <Brand />
-            <SidebarNav onNavigate={() => setMobilePath(null)} />
+            <SidebarNav unread={unread} onNavigate={() => setMobilePath(null)} />
           </div>
         </div>
       ) : null}
@@ -133,9 +168,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               </p>
             </div>
           </div>
-          <Button variant="secondary" className="shrink-0 whitespace-nowrap" onClick={() => setConfirmLogout(true)}>
-            Sign out
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/workflows#notifications"
+              className="rounded-md px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100"
+            >
+              Notifications{unread > 0 ? ` (${unread})` : ""}
+            </Link>
+            <Button variant="secondary" className="shrink-0 whitespace-nowrap" onClick={() => setConfirmLogout(true)}>
+              Sign out
+            </Button>
+          </div>
         </header>
         <main id="main" className="flex-1 px-4 py-6 md:px-8">
           {children}

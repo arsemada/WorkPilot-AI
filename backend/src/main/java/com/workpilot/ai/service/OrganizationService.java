@@ -34,16 +34,19 @@ public class OrganizationService {
     private final OrganizationMembershipRepository membershipRepository;
     private final UserRepository userRepository;
     private final OrganizationAccessService organizationAccessService;
+    private final WorkflowCatalog workflowCatalog;
 
     public OrganizationService(
             OrganizationRepository organizationRepository,
             OrganizationMembershipRepository membershipRepository,
             UserRepository userRepository,
-            OrganizationAccessService organizationAccessService) {
+            OrganizationAccessService organizationAccessService,
+            WorkflowCatalog workflowCatalog) {
         this.organizationRepository = organizationRepository;
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
         this.organizationAccessService = organizationAccessService;
+        this.workflowCatalog = workflowCatalog;
     }
 
     @Transactional
@@ -65,6 +68,7 @@ public class OrganizationService {
         }
         Organization organization = organizationRepository.save(new Organization(name.trim(), slug));
         membershipRepository.save(new OrganizationMembership(organization, owner, OrganizationRole.OWNER));
+        workflowCatalog.ensure(organization);
         return organization;
     }
 

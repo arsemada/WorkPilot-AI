@@ -59,6 +59,12 @@ workpilot:
     vector-store: json
     max-tool-calls: 3
     tool-budget: 5s
+  workflow:
+    retry-backoff: 0s
+    overdue-cron: "0 0 0 31 2 ?"
+    activity-cron: "0 0 0 31 2 ?"
+    retry-delay-ms: 86400000
+    retry-initial-delay-ms: 86400000
 
 management:
   endpoints:

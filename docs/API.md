@@ -1,6 +1,6 @@
 # WorkPilot AI API
 
-Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Documents can be uploaded, searched, downloaded, and deleted inside an organization. The dashboard summarizes tasks and recorded activity for one organization. Members can keep private assistant conversations. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
+Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Documents can be uploaded, searched, downloaded, and deleted inside an organization. The dashboard summarizes tasks and recorded activity for one organization. Members can keep private assistant conversations. Organizations have workflow rules, execution history, and in-app notifications. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
 
 The API base URL for local development is `http://localhost:8081`.
 
@@ -223,6 +223,27 @@ Retrieved passages are untrusted. The instruction tells the model to ignore comm
 The assistant can call two tools. `list_tasks` reads tasks through the task service for the organization in the path. `mine` limits that lookup to the signed-in user. `create_task` validates a title, optional description, priority, and `YYYY-MM-DD` due date, then waits for confirmation. The model cannot supply an organization id or a user id. Confirming calls the same task creation used by the tasks API and returns the saved task. Confirming the same proposal again returns that saved task and does not create another. Rejecting leaves it unsaved. A missing title, malformed arguments, or an unknown tool is stored as `FAILED` and does not create a task. Another member receives `404`. Each reply allows 3 tool calls. The tool budget is 15 seconds.
 
 Each member can send 40 messages per organization per UTC day. The 41st message returns `429` with `You have reached today's assistant message limit.` A missing key, a provider error, or a timeout returns `503`. Those failures are not saved as assistant messages, so the same text can be sent again. If embedding fails while answering, the reply is still generated and `documentSupport` is `false`.
+
+### Workflows and notifications
+
+Listing rules and execution history requires `ORG_READ`. Creating, renaming, enabling, and disabling a rule requires `ORG_UPDATE`. A caller who is not a member receives `404 Organization not found`. A member without `ORG_UPDATE` receives `403`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/organizations/{organizationId}/workflows` | List the organization's rules |
+| `POST` | `/api/organizations/{organizationId}/workflows` | Create a supported rule. Body: `{ "name", "eventType", "actionType" }` |
+| `PATCH` | `/api/organizations/{organizationId}/workflows/{ruleId}` | Rename a rule. Body: `{ "name" }` |
+| `POST` | `/api/organizations/{organizationId}/workflows/{ruleId}/enable` | Enable a rule |
+| `POST` | `/api/organizations/{organizationId}/workflows/{ruleId}/disable` | Disable a rule |
+| `GET` | `/api/organizations/{organizationId}/workflows/executions` | Recent runs, newest first, up to 50 |
+| `GET` | `/api/notifications` | Notifications for the signed-in user, newest first, up to 50 |
+| `GET` | `/api/notifications/unread-count` | `{ "count" }` of unread notifications |
+| `POST` | `/api/notifications/{notificationId}/read` | Mark one notification read. Another user's notification returns `404 Notification not found` |
+| `POST` | `/api/notifications/read-all` | Mark every notification for the signed-in user read |
+
+Supported pairs are `TASK_ASSIGNED` with `NOTIFY_ASSIGNEE`, `TASK_OVERDUE` with `NOTIFY_RELEVANT_USERS`, `DOCUMENT_UPLOADED` with `PROCESS_DOCUMENT`, `DOCUMENT_PROCESSED` with `SUMMARIZE_DOCUMENT`, and `SCHEDULED_ACTIVITY` with `SUMMARIZE_ACTIVITY`. Any other pair returns `400` with `That trigger and action are not supported together.` A second rule for the same event returns `400` with `This organization already has a workflow for that event.` A missing rule returns `404 Workflow not found`.
+
+New organizations receive all five rules. The document summary starts disabled. The others start enabled. A disabled rule does not run. Each event is claimed once per rule through an idempotency key, so a repeated event does not run again. A run is `RUNNING`, `SUCCEEDED`, `FAILED`, or `SKIPPED`. Failed runs keep the error message and are retried up to 3 attempts. A skipped or failed run is not returned as succeeded.
 
 ### Health
 

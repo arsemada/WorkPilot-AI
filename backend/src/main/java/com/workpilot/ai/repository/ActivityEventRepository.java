@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,20 @@ public interface ActivityEventRepository extends JpaRepository<ActivityEvent, UU
             """)
     List<ActivityEvent> findRecentByOrganizationId(
             @Param("organizationId") UUID organizationId,
+            Pageable pageable);
+
+    @Query("""
+            SELECT a FROM ActivityEvent a
+            JOIN FETCH a.actor
+            WHERE a.organization.id = :organizationId
+              AND a.occurredOn = :day
+              AND a.type IN :types
+            ORDER BY a.occurredAt DESC
+            """)
+    List<ActivityEvent> findByOrganizationAndDay(
+            @Param("organizationId") UUID organizationId,
+            @Param("day") LocalDate day,
+            @Param("types") Collection<ActivityType> types,
             Pageable pageable);
 
     @Query("""

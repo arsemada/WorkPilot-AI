@@ -165,7 +165,9 @@ export type ActivityType =
   | "TASK_UPDATED"
   | "TASK_STATUS_CHANGED"
   | "TASK_COMPLETED"
-  | "TASK_DELETED";
+  | "TASK_DELETED"
+  | "WORKFLOW_SUCCEEDED"
+  | "WORKFLOW_FAILED";
 
 export type DashboardSummary = {
   organizationId: string;
@@ -199,6 +201,62 @@ export type ActivityEvent = {
   actorId: string;
   actorName: string;
   occurredAt: string;
+};
+
+export type WorkflowEventType =
+  | "TASK_ASSIGNED"
+  | "TASK_OVERDUE"
+  | "DOCUMENT_UPLOADED"
+  | "DOCUMENT_PROCESSED"
+  | "SCHEDULED_ACTIVITY";
+
+export type WorkflowActionType =
+  | "NOTIFY_ASSIGNEE"
+  | "NOTIFY_RELEVANT_USERS"
+  | "PROCESS_DOCUMENT"
+  | "SUMMARIZE_DOCUMENT"
+  | "SUMMARIZE_ACTIVITY";
+
+export type WorkflowCondition = "ALWAYS" | "HAS_ASSIGNEE" | "TEXT_EXTRACTED";
+
+export type WorkflowExecutionStatus = "RUNNING" | "SUCCEEDED" | "FAILED" | "SKIPPED";
+
+export type WorkflowRule = {
+  id: string;
+  name: string;
+  eventType: WorkflowEventType;
+  conditionType: WorkflowCondition;
+  actionType: WorkflowActionType;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkflowExecution = {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  eventType: WorkflowEventType;
+  status: WorkflowExecutionStatus;
+  attemptCount: number;
+  errorMessage: string | null;
+  resultMessage: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+};
+
+export type AppNotification = {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+};
+
+export type UnreadCount = {
+  count: number;
 };
 
 export type MessageRole = "USER" | "ASSISTANT";

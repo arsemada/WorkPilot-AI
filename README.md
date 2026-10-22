@@ -1,6 +1,6 @@
 # WorkPilot AI
 
-WorkPilot AI is an AI-powered business operations platform. Accounts, organizations, cookie sessions, task management, document storage, and the organization dashboard are in place. The AI assistant and workflows are not implemented yet.
+WorkPilot AI is an AI-powered business operations platform. Accounts, organizations, cookie sessions, task management, documents, the assistant, workflow rules, and the organization dashboard are in place.
 
 ## Technology stack
 
@@ -132,6 +132,7 @@ Migrations:
 | `V8__document_chunks.sql` | Document chunks, indexing status, and answer sources |
 | `V9__pgvector.sql` | PostgreSQL `vector` extension and similarity index |
 | `V10__assistant_tool_calls.sql` | Assistant task lookup and confirmed task creation |
+| `V11__workflows.sql` | Workflow rules, execution history, and in-app notifications |
 
 ## Health checks
 
@@ -215,6 +216,22 @@ A missing key or a provider failure returns `503` with a short message. Reaching
 When indexed chunks exist for the organization, the assistant retrieves the closest passages and stores those sources with the reply. Passages are treated as untrusted data. If nothing relevant is retrieved, the reply is marked as having no document support and the page says that no matching documents were found.
 
 The assistant can look up tasks and prepare a new task. Preparing a task does not save it. The member confirms the title, priority, and due date before the task service creates the task. The saved task is the one returned by that service, and the same confirmation cannot create a second copy. A caller who does not own the conversation cannot confirm the action. Tool arguments cannot choose an organization or a user id. Each request allows 3 tool calls and a 15 second tool budget.
+
+## Workflows
+
+Each organization starts with five workflows. Owners and admins can enable or disable them. Members can read the rules and the run history.
+
+| Trigger | Action | Starts enabled |
+| --- | --- | --- |
+| A task is assigned | Notify the assignee | Yes |
+| A task is overdue | Notify the assignee, or the creator when there is no assignee | Yes |
+| A document is uploaded | Process the document | Yes |
+| A document finishes processing and has extracted text | Summarize it for the uploader | No |
+| Each day | Send the previous day's task activity | Yes |
+
+A task assignment sends one notification for that assignee. The same assignment does not send another. The overdue check runs daily at 08:00 UTC and notifies once for a task and due date. Uploading a document starts processing through the workflow. If that rule is disabled, the upload stays stored and processing does not start. The document summary uses the assistant and stays off until an owner or admin enables it. If the assistant is not configured, that run is saved as failed and the document processing result stays separate. The activity summary runs daily at 08:15 UTC.
+
+Runs keep a status of running, succeeded, failed, or skipped, with up to 3 attempts. A failed run shows the error and is not reported as succeeded. Notifications have a read state. The Workflows page shows the unread count for the signed-in user.
 
 ## Dashboard
 
