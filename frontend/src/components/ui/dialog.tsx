@@ -50,7 +50,7 @@ export function Dialog({ open, title, description, onClose, children }: DialogPr
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-slate-900/40"
+        className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]"
         aria-label="Close dialog"
         onClick={onClose}
       />
@@ -61,7 +61,7 @@ export function Dialog({ open, title, description, onClose, children }: DialogPr
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-lg outline-none"
+        className="panel relative w-full max-w-md p-6 outline-none"
       >
         <h2 id={titleId} className="text-lg font-semibold text-slate-950">
           {title}

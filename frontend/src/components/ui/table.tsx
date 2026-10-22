@@ -25,7 +25,7 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center">
+      <div className="empty-panel px-4 py-12">
         <p className="font-medium text-slate-950">{emptyTitle}</p>
         <p className="mt-1 text-sm text-slate-700">{emptyDescription}</p>
       </div>
@@ -33,13 +33,13 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    <div className="panel overflow-x-auto">
       <table className="min-w-full border-collapse text-left text-sm">
         <caption className="sr-only">{caption}</caption>
-        <thead className="bg-slate-50 text-slate-800">
+        <thead className="text-slate-500">
           <tr>
             {columns.map((column) => (
-              <th key={column.id} scope="col" className="px-4 py-3 font-semibold">
+              <th key={column.id} scope="col" className="px-4 py-3 text-xs font-semibold tracking-wide uppercase">
                 {column.header}
               </th>
             ))}
@@ -47,9 +47,9 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={getRowKey(row)} className="border-t border-slate-200">
+            <tr key={getRowKey(row)} className="border-t border-slate-100 transition-colors hover:bg-slate-50/80">
               {columns.map((column) => (
-                <td key={column.id} className="px-4 py-3 align-middle text-slate-950">
+                <td key={column.id} className="px-4 py-3.5 align-middle text-slate-950">
                   {column.cell(row)}
                 </td>
               ))}

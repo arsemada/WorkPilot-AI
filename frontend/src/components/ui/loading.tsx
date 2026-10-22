@@ -15,7 +15,7 @@ export function Spinner({ className }: { className?: string }) {
 export function LoadingScreen({ label }: { label: string }) {
   return (
     <div className="flex min-h-full flex-1 items-center justify-center px-6 py-24" role="status">
-      <div className="flex items-center gap-3 text-slate-800">
+      <div className="panel flex items-center gap-3 px-5 py-4 text-slate-800">
         <Spinner className="size-5 text-blue-700" />
         <span className="text-sm font-medium">{label}</span>
       </div>

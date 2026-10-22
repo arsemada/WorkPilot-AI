@@ -230,7 +230,7 @@ export function AssistantWorkspace() {
   if (memberships.length === 0) {
     return (
       <section className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">AI Assistant</h1>
+        <h1 className="page-title">AI Assistant</h1>
         <p className="mt-4 text-base leading-7 text-slate-700">
           You are not a member of an organization yet. Register with an organization name, or ask an owner to add your
           account.
@@ -243,9 +243,9 @@ export function AssistantWorkspace() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 lg:h-[calc(100vh-8rem)] lg:flex-row">
-      <aside className="flex max-h-80 flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 lg:max-h-none lg:w-72">
+      <aside className="panel flex max-h-80 flex-col gap-3 p-4 lg:max-h-none lg:w-72">
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-lg font-semibold text-slate-950">AI Assistant</h1>
+          <h1 className="text-lg font-semibold tracking-tight text-slate-950">AI Assistant</h1>
           {loadingList ? <Spinner /> : null}
         </div>
         {memberships.length > 1 ? (
@@ -281,8 +281,8 @@ export function AssistantWorkspace() {
                 aria-current={selected ? "true" : undefined}
                 className={
                   selected
-                    ? "block w-full rounded-md bg-blue-50 px-3 py-2 text-left text-sm font-semibold text-blue-950"
-                    : "block w-full rounded-md px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
+                    ? "block w-full rounded-lg bg-blue-50 px-3 py-2.5 text-left text-sm font-semibold text-blue-950"
+                    : "block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
                 }
                 onClick={() => setSelectedId(conversation.id)}
               >
@@ -293,7 +293,7 @@ export function AssistantWorkspace() {
         </div>
       </aside>
 
-      <section className="flex min-h-[32rem] flex-1 flex-col rounded-lg border border-slate-200 bg-white">
+      <section className="panel flex min-h-[32rem] flex-1 flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <h2 className="truncate text-base font-semibold text-slate-950">{selectedId ? activeTitle : "Conversation"}</h2>
           {selectedId ? (
@@ -314,10 +314,10 @@ export function AssistantWorkspace() {
               <article
                 key={message.id}
                 aria-label={fromUser ? "You" : "Assistant"}
-                className={fromUser ? "ml-auto max-w-[85%] rounded-lg bg-blue-50 px-3 py-2" : "mr-auto max-w-[85%] rounded-lg bg-slate-50 px-3 py-2"}
+                className={fromUser ? "ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-blue-700 px-3.5 py-2.5 text-white" : "mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2.5"}
               >
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{fromUser ? "You" : "Assistant"}</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-900">{message.content}</p>
+                <p className={fromUser ? "text-xs font-semibold tracking-wide text-blue-100 uppercase" : "text-xs font-semibold tracking-wide text-slate-500 uppercase"}>{fromUser ? "You" : "Assistant"}</p>
+                <p className={fromUser ? "mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-white" : "mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-900"}>{message.content}</p>
                 {!fromUser && message.toolCalls?.map((toolCall) => (
                   <ToolCallCard
                     key={toolCall.id}

@@ -29,7 +29,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
       ) : null}
       {status === "unavailable" ? (
         <div className="flex flex-1 items-center justify-center px-6 py-24">
-          <div className="max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center">
+          <div className="panel max-w-md p-6 text-center">
             <h1 className="text-lg font-semibold text-slate-950">The workspace is unavailable</h1>
             <p className="mt-2 text-sm leading-6 text-slate-700">
               {errorMessage ?? "The session could not be loaded."}

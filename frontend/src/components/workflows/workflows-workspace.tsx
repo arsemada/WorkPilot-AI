@@ -157,7 +157,7 @@ export function WorkflowsWorkspace() {
   if (!organizationId) {
     return (
       <section className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Workflows</h1>
+        <h1 className="page-title">Workflows</h1>
         <p className="mt-4 text-base leading-7 text-slate-700">
           You are not a member of an organization yet. Register with an organization name, or ask an owner to add your account.
         </p>
@@ -170,7 +170,7 @@ export function WorkflowsWorkspace() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Workflows</h1>
+        <h1 className="page-title">Workflows</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
           {membership?.organizationName}. These are the triggers and actions this organization can run. A disabled rule does not run, and a failed run stays visible.
         </p>
@@ -186,14 +186,14 @@ export function WorkflowsWorkspace() {
       <section>
         <h2 className="text-lg font-semibold text-slate-950">Rules</h2>
         {rules.length === 0 && !loading ? (
-          <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center">
+          <div className="empty-panel mt-3 px-4 py-12">
             <p className="font-medium text-slate-950">No workflows yet</p>
             <p className="mt-1 text-sm text-slate-700">Supported workflows appear here after the organization is created.</p>
           </div>
         ) : (
           <ul className="mt-3 space-y-3">
             {rules.map((rule) => (
-              <li key={rule.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+              <li key={rule.id} className="panel px-4 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-slate-950">{rule.name}</p>
@@ -223,14 +223,14 @@ export function WorkflowsWorkspace() {
       <section>
         <h2 className="text-lg font-semibold text-slate-950">History</h2>
         {executions.length === 0 && !loading ? (
-          <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center">
+          <div className="empty-panel mt-3 px-4 py-12">
             <p className="font-medium text-slate-950">No workflow runs yet</p>
             <p className="mt-1 text-sm text-slate-700">Assigning a task or uploading a document can start one.</p>
           </div>
         ) : (
           <ul className="mt-3 space-y-3">
             {executions.map((execution) => (
-              <li key={execution.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+              <li key={execution.id} className="panel px-4 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold text-slate-950">{execution.ruleName}</p>
                   <p className={execution.status === "FAILED" ? "text-sm font-semibold text-red-800" : "text-sm font-semibold text-slate-700"}>
@@ -263,7 +263,7 @@ export function WorkflowsWorkspace() {
           ) : null}
         </div>
         {notifications.length === 0 && !loading ? (
-          <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center">
+          <div className="empty-panel mt-3 px-4 py-12">
             <p className="font-medium text-slate-950">No notifications yet</p>
             <p className="mt-1 text-sm text-slate-700">Assigning a task or an overdue task can send one here.</p>
           </div>
@@ -272,7 +272,7 @@ export function WorkflowsWorkspace() {
             {notifications.map((notification) => (
               <li
                 key={notification.id}
-                className={notification.read ? "rounded-lg border border-slate-200 bg-white px-4 py-3" : "rounded-lg border border-blue-200 bg-blue-50 px-4 py-3"}
+                className={notification.read ? "panel px-4 py-4" : "rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 shadow-sm"}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>

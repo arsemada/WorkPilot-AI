@@ -18,7 +18,7 @@ export function Form({
 }
 
 const controlClass =
-  "block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 shadow-sm placeholder:text-slate-500";
+  "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-950 transition placeholder:text-slate-400 focus:border-blue-700 focus:ring-4 focus:ring-blue-100 focus:outline-none";
 
 function describedBy(id: string, hint?: string, error?: string) {
   return [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ");

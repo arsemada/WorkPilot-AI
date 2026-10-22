@@ -142,7 +142,7 @@ export function DashboardHome() {
   if (memberships.length === 0) {
     return (
       <section className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Dashboard</h1>
+        <h1 className="page-title">Dashboard</h1>
         <p className="mt-4 text-base leading-7 text-slate-700">
           You are not a member of an organization yet. Register with an organization name, or ask an
           owner to add your account.
@@ -157,7 +157,7 @@ export function DashboardHome() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Dashboard</h1>
+          <h1 className="page-title">Dashboard</h1>
           <p className="mt-1 text-sm text-slate-700">
             Task counts for {membership?.organizationName ?? "this organization"}.
           </p>
@@ -197,7 +197,7 @@ export function DashboardHome() {
             <MetricCard label="Overdue" value={summary.overdueTasks} emphasis={summary.overdueTasks > 0} />
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4" aria-busy={loading}>
+          <section className="panel p-5" aria-busy={loading}>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-slate-950">Completions</h2>
@@ -245,7 +245,7 @@ export function DashboardHome() {
             <div>
               <h2 className="mb-3 text-lg font-semibold text-slate-950">Recent activity</h2>
               {activity.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center">
+                <div className="empty-panel px-4 py-12">
                   <p className="font-medium text-slate-950">No activity yet</p>
                   <p className="mt-1 text-sm text-slate-700">
                     Creating, updating, completing, and deleting tasks will be listed here.
@@ -254,7 +254,7 @@ export function DashboardHome() {
               ) : (
                 <ol className="space-y-3">
                   {activity.map((event) => (
-                    <li key={event.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+                    <li key={event.id} className="panel px-4 py-3">
                       <p className="text-sm font-medium text-slate-950">
                         {event.actorName} {event.summary}
                       </p>
@@ -273,7 +273,7 @@ export function DashboardHome() {
 
 function MetricCard({ label, value, emphasis = false }: { label: string; value: number; emphasis?: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-4">
+    <div className={emphasis ? "panel metric metric-alert px-5 py-4" : "panel metric px-5 py-4"}>
       <p className="text-sm font-medium text-slate-700">{label}</p>
       <p className={emphasis ? "mt-2 text-3xl font-semibold text-red-800" : "mt-2 text-3xl font-semibold text-slate-950"}>
         {value}
@@ -334,7 +334,7 @@ function CompletionChart({ points }: { points: DashboardTrend["points"] }) {
           })}
         </svg>
       </div>
-      <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200">
+      <div className="panel max-h-48 overflow-y-auto">
         <table className="min-w-full border-collapse text-left text-sm">
           <caption className="sr-only">Tasks marked done by UTC day</caption>
           <thead className="sticky top-0 bg-slate-50 text-slate-800">

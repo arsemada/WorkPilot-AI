@@ -48,7 +48,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={toast.id}
             role="status"
             className={cn(
-              "pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow-sm",
+              "pointer-events-auto rounded-xl border px-4 py-3 text-sm shadow-lg",
               tones[toast.tone],
             )}
           >

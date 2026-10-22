@@ -260,7 +260,7 @@ export function TasksWorkspace() {
   if (memberships.length === 0) {
     return (
       <section className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Tasks</h1>
+        <h1 className="page-title">Tasks</h1>
         <p className="mt-4 text-base leading-7 text-slate-700">
           You are not a member of an organization yet. Register with an organization name, or ask an
           owner to add your account.
@@ -278,7 +278,7 @@ export function TasksWorkspace() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Tasks</h1>
+          <h1 className="page-title">Tasks</h1>
           <p className="mt-1 text-sm text-slate-700">Work assigned inside {membership?.organizationName}.</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
@@ -300,7 +300,7 @@ export function TasksWorkspace() {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="panel grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
         <TextField
           id="task-search"
           label="Search"
@@ -402,7 +402,7 @@ export function TasksWorkspace() {
               id: "title",
               header: "Task",
               cell: (task) => (
-                <button type="button" className="text-left font-medium text-blue-800 underline" onClick={() => openTask(task)}>
+                <button type="button" className="text-left font-semibold text-blue-800 underline-offset-2 hover:underline" onClick={() => openTask(task)}>
                   {task.title}
                 </button>
               ),
@@ -417,7 +417,7 @@ export function TasksWorkspace() {
                     <select
                       id={`status-${task.id}`}
                       aria-label={`Status for ${task.title}`}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+                      className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm"
                       value={task.status}
                       onChange={(event) => void changeStatus(task, event.target.value as TaskStatus)}
                     >

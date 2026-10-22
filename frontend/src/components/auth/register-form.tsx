@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { ApiError } from "@/lib/api/client";
+import { AuthFrame } from "@/components/auth/auth-frame";
 import { Form, FormBanner, TextField } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -67,15 +68,19 @@ export function RegisterForm() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <p className="text-sm font-semibold text-blue-800">WorkPilot AI</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create an account</h1>
-        <p className="mt-2 text-base leading-7 text-slate-700">
-          Registration creates your user. An organization name also makes you its owner.
-        </p>
-        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <Form onSubmit={onSubmit}>
+    <AuthFrame
+      title="Create an account"
+      lede="Registration creates your user. An organization name also makes you its owner."
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link href="/login" className="font-semibold text-blue-800 underline-offset-2 hover:underline">
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <Form onSubmit={onSubmit}>
             {formError ? <FormBanner tone="error">{formError}</FormBanner> : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
@@ -131,14 +136,6 @@ export function RegisterForm() {
               Create account
             </Button>
           </Form>
-        </div>
-        <p className="mt-4 text-sm text-slate-700">
-          Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-blue-800 underline">
-            Sign in
-          </Link>
-        </p>
-      </div>
-    </main>
+    </AuthFrame>
   );
 }
