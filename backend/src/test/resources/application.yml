@@ -75,4 +75,5 @@ management:
     health:
       probes:
         enabled: true
-      show-details: always
+      show-details: when-authorized
+      show-components: when-authorized

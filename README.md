@@ -143,7 +143,7 @@ http://localhost:8081/actuator/health
 http://localhost:8081/actuator/health/readiness
 ```
 
-A healthy database connection looks like `"status":"UP"` with a `db` component of `"UP"`.
+An anonymous health check returns `"status":"UP"` and leaves out component details. A signed-in caller also sees the `db` component.
 
 Container status:
 
@@ -159,7 +159,9 @@ The API uses an HttpOnly session cookie named `WORKPILOT_SESSION`. Passwords are
 
 The frontend API client always sends `credentials: "include"` to `NEXT_PUBLIC_API_BASE_URL`. Before `POST`, `PATCH`, or `DELETE`, it calls `GET /api/auth/csrf` and sends the returned token in the `X-XSRF-TOKEN` header. The session cookie is not readable from JavaScript. A request that expected an existing session and receives `401` clears the local user and returns to the sign-in page.
 
-`GET /actuator/health` stays public and does not require CSRF.
+`GET /actuator/health` stays public and does not require CSRF. Public responses include the overall status. Component details, including the database, are included for a signed-in caller.
+
+For a shared deployment, set `SESSION_COOKIE_SECURE=true` when the site is served over HTTPS, set `CORS_ALLOWED_ORIGINS` to the real frontend origin, and keep `OPENAI_API_KEY` on the server. Swagger UI is public in this configuration. Set `springdoc.api-docs.enabled=false` and `springdoc.swagger-ui.enabled=false` when the API should not be browsable. Sign-in does not lock an account after repeated failures. Automated backend tests run on H2, and one test runs the pgvector query against PostgreSQL when Docker is available. The frontend has ESLint and TypeScript checks and does not include a browser test runner.
 
 Organization permissions are `OWNER`, `ADMIN`, and `MEMBER`. A user who is not a member of an organization receives `404` for that organization's resources. Future organization-owned entities should implement `OrganizationScoped` and pass through `OrganizationAccessService`.
 
@@ -173,7 +175,7 @@ Public routes are `/login` and `/register`. `/` sends a signed-in user to `/dash
 | `/tasks` | Task list, filters, create, edit, status changes, and delete |
 | `/documents` | Upload, search, download, edit, and delete organization files |
 | `/assistant` | Conversations with the assistant |
-| `/workflows` | Placeholder |
+| `/workflows` | Workflow rules, run history, and notifications |
 | `/settings` | Placeholder |
 
 Registration calls `POST /api/auth/register`, then `POST /api/auth/login`. The API does not start a session during registration. Sign-out calls `POST /api/auth/logout`. Reloading the page calls `GET /api/auth/me` and keeps the user in the shell while the session cookie is still valid.

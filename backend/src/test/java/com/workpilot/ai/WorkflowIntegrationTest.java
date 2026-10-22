@@ -121,8 +121,10 @@ class WorkflowIntegrationTest {
 
         workflowEngine.scanOverdue(LocalDate.now(ZoneOffset.UTC));
         workflowEngine.scanOverdue(LocalDate.now(ZoneOffset.UTC));
-        assertEquals(1, countTitle(notifications(), "Task overdue"));
+        JsonNode ownerNotifications = notifications();
+        assertEquals(1, countTitle(ownerNotifications, "Task overdue"));
         assertEquals("SUCCEEDED", execution(executions(organizationId), "TASK_OVERDUE").get("status").asText());
+        String notificationId = ownerNotifications.get(0).get("id").asText();
 
         login(outsiderEmail);
         MvcResult hidden = getWithSession("/api/organizations/" + organizationId + "/workflows");
@@ -130,6 +132,11 @@ class WorkflowIntegrationTest {
         assertEquals("Organization not found", objectMapper.readTree(hidden.getResponse().getContentAsString()).get("message").asText());
 
         login(memberEmail);
+        MvcResult foreignNotification = submit("/api/notifications/" + notificationId + "/read", Map.of());
+        assertEquals(404, foreignNotification.getResponse().getStatus());
+        assertEquals("Notification not found",
+                objectMapper.readTree(foreignNotification.getResponse().getContentAsString()).get("message").asText());
+        assertEquals(0, notifications().size());
         UUID ruleId = ruleId(rules(organizationId), "TASK_OVERDUE");
         MvcResult denied = submit("/api/organizations/" + organizationId + "/workflows/" + ruleId + "/disable", Map.of());
         assertEquals(403, denied.getResponse().getStatus());

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -56,6 +57,9 @@ class AuthOrganizationIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
+    private ServerProperties serverProperties;
+
+    @Autowired
     private OrganizationAccessService organizationAccessService;
 
     private String csrfToken;
@@ -82,8 +86,11 @@ class AuthOrganizationIntegrationTest {
 
     @Test
     void healthIsPublic() throws Exception {
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk());
+        MvcResult health = mockMvc.perform(get("/actuator/health")).andReturn();
+        assertEquals(200, health.getResponse().getStatus());
+        JsonNode body = objectMapper.readTree(health.getResponse().getContentAsString());
+        assertEquals("UP", body.get("status").asText());
+        assertTrue(body.get("components") == null || body.get("components").isNull());
     }
 
     @Test
@@ -115,7 +122,17 @@ class AuthOrganizationIntegrationTest {
         assertEquals(200, loggedIn.getResponse().getStatus());
         assertEquals(email, objectMapper.readTree(loggedIn.getResponse().getContentAsString()).get("email").asText());
         assertSecretFree(loggedIn.getResponse().getContentAsString());
+        var cookie = serverProperties.getServlet().getSession().getCookie();
+        assertEquals("WORKPILOT_SESSION", cookie.getName());
+        assertEquals(Boolean.TRUE, cookie.getHttpOnly());
+        assertEquals("LAX", cookie.getSameSite().name());
+        assertEquals(Boolean.FALSE, cookie.getSecure());
         MockHttpSession authenticatedSession = session;
+
+        MvcResult detailedHealth = getWithSession("/actuator/health");
+        assertEquals(200, detailedHealth.getResponse().getStatus());
+        assertEquals("UP", objectMapper.readTree(detailedHealth.getResponse().getContentAsString())
+                .path("components").path("db").path("status").asText());
 
         MvcResult profile = getWithSession("/api/auth/me");
         assertEquals(200, profile.getResponse().getStatus());

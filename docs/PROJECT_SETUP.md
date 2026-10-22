@@ -15,7 +15,7 @@ This document records how the WorkPilot AI repository was initialized. It descri
 - **Persistent volume.** Named volume `workpilot_postgres_data` mounted at `/var/lib/postgresql/data`.
 - **Frontend.** Next.js 16.4.1 App Router, React 19.3.0, TypeScript, Tailwind CSS 4, and ESLint, created with npm. The page identifies the project and prints the configured public API base URL.
 - **API addresses.** `NEXT_PUBLIC_API_BASE_URL=http://localhost:8081` is for the browser. `API_BASE_URL` is `http://localhost:8081` on the host and `http://backend:8081` in Compose.
-- **Health.** Actuator exposes `health` on port 8081, including readiness and liveness probes. Health details are set to `always` so a local check can show the database component. Restrict that before any shared deployment.
+- **Health.** Actuator exposes `health` on port 8081, including readiness and liveness probes. Component details are shown to a signed-in caller. Anonymous checks receive the overall status.
 - **Environment files.** Root, `backend/`, and `frontend/` each have an `.env.example`. Spring Boot imports an optional `backend/.env` as properties when the process working directory is `backend/`. Compose reads the root `.env` for interpolation and injects container environment variables directly. Passwords are not written in Java, YAML defaults, or Dockerfiles.
 
 ## Versions
@@ -81,7 +81,7 @@ Resolved Maven and npm dependency versions are recorded after verification in th
 - Phase 1 replaced the temporary permit-all filter with cookie sessions, BCrypt passwords, and organization roles. See [API.md](API.md).
 - Flyway owns the schema. The initial tables are users, organizations, and organization memberships.
 - Document text extraction and embedding run in the backend. The assistant calls OpenAI when `OPENAI_API_KEY` is set and can cite indexed document passages. Workflow rules notify assignees, process uploads, and send a daily activity summary.
-- Actuator health details are visible without authentication.
+- Anonymous actuator health checks return the overall status. A signed-in caller can see component details.
 - The local development password lives only in gitignored `.env` files, but `.env.example` contains the obvious placeholder `change-me`.
 - Host execution uses JDK 25 because JDK 21 is not installed. The compiled target and the container runtime are Java 21.
 - `npm audit` may report vulnerabilities in the Next.js dependency tree. They were not force-upgraded during initialization.
