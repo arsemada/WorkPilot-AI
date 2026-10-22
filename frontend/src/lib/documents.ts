@@ -54,3 +54,32 @@ export function processingTone(status: OrganizationDocument["processingStatus"])
 export function isProcessing(status: OrganizationDocument["processingStatus"]) {
   return status === "PENDING" || status === "PROCESSING";
 }
+
+export function indexingLabel(status: OrganizationDocument["indexingStatus"]) {
+  if (status === "PENDING") return "Not indexed";
+  if (status === "PROCESSING") return "Indexing";
+  if (status === "COMPLETED") return "Indexed";
+  if (status === "FAILED") return "Index failed";
+  if (status === "STALE") return "Reindex";
+  return "No text";
+}
+
+export function indexingTone(status: OrganizationDocument["indexingStatus"]): Tone {
+  if (status === "COMPLETED") return "success";
+  if (status === "FAILED" || status === "STALE") return "danger";
+  if (status === "PROCESSING") return "info";
+  if (status === "SKIPPED") return "planned";
+  return "planned";
+}
+
+export function isIndexing(status: OrganizationDocument["indexingStatus"]) {
+  return status === "PENDING" || status === "PROCESSING";
+}
+
+export function canReindex(document: OrganizationDocument) {
+  return (
+    document.processingStatus === "COMPLETED" &&
+    document.textIndexed &&
+    (document.indexingStatus === "FAILED" || document.indexingStatus === "STALE" || document.indexingStatus === "PENDING")
+  );
+}

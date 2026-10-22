@@ -17,6 +17,14 @@ public class AiProperties {
     private int maxMessageChars = 4000;
     private int maxHistoryMessages = 20;
     private int dailyMessageLimit = 40;
+    private String embeddingModel = "text-embedding-3-small";
+    private String embeddingModelVersion = "3";
+    private int embeddingDimensions = 1536;
+    private double maxCosineDistance = 0.45;
+    private int retrievalLimit = 4;
+    private String vectorStore = "pgvector";
+    private int maxToolCalls = 3;
+    private Duration toolBudget = Duration.ofSeconds(15);
 
     public String getApiKey() {
         return apiKey;
@@ -80,5 +88,69 @@ public class AiProperties {
 
     public void setDailyMessageLimit(int dailyMessageLimit) {
         this.dailyMessageLimit = dailyMessageLimit;
+    }
+
+    public String getEmbeddingModel() {
+        return embeddingModel;
+    }
+
+    public void setEmbeddingModel(String embeddingModel) {
+        this.embeddingModel = embeddingModel;
+    }
+
+    public String getEmbeddingModelVersion() {
+        return embeddingModelVersion;
+    }
+
+    public void setEmbeddingModelVersion(String embeddingModelVersion) {
+        this.embeddingModelVersion = embeddingModelVersion;
+    }
+
+    public int getEmbeddingDimensions() {
+        return embeddingDimensions;
+    }
+
+    public void setEmbeddingDimensions(int embeddingDimensions) {
+        this.embeddingDimensions = embeddingDimensions;
+    }
+
+    public double getMaxCosineDistance() {
+        return maxCosineDistance;
+    }
+
+    public void setMaxCosineDistance(double maxCosineDistance) {
+        this.maxCosineDistance = maxCosineDistance;
+    }
+
+    public int getRetrievalLimit() {
+        return retrievalLimit;
+    }
+
+    public void setRetrievalLimit(int retrievalLimit) {
+        this.retrievalLimit = retrievalLimit;
+    }
+
+    public String getVectorStore() {
+        return vectorStore;
+    }
+
+    public void setVectorStore(String vectorStore) {
+        this.vectorStore = vectorStore;
+    }
+
+    public int getMaxToolCalls() {
+        return maxToolCalls;
+    }
+
+    public void setMaxToolCalls(int maxToolCalls) {
+        this.maxToolCalls = maxToolCalls;
+    }
+
+    public Duration getToolBudget() {
+        return toolBudget;
+    }
+
+    public void setToolBudget(Duration toolBudget) {
+        this.toolBudget = toolBudget;
     }
 }

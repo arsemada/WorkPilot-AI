@@ -76,6 +76,12 @@ public class DocumentController {
         return documentService.retry(organizationId, documentId);
     }
 
+    @PostMapping("/{documentId}/reindex")
+    @Operation(summary = "Index extracted document text again")
+    public DocumentResponse reindex(@PathVariable UUID organizationId, @PathVariable UUID documentId) {
+        return documentService.reindex(organizationId, documentId);
+    }
+
     @GetMapping("/{documentId}/content")
     @Operation(summary = "Download a document file")
     public ResponseEntity<Resource> download(@PathVariable UUID organizationId, @PathVariable UUID documentId) {

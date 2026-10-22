@@ -38,3 +38,17 @@ export function deleteConversation(organizationId: string, conversationId: strin
     session: "required",
   });
 }
+
+export function confirmToolCall(organizationId: string, conversationId: string, toolCallId: string) {
+  return apiRequest<ConversationDetail>(
+    `/api/organizations/${organizationId}/conversations/${conversationId}/tool-calls/${toolCallId}/confirm`,
+    { method: "POST", body: {}, session: "required" },
+  );
+}
+
+export function rejectToolCall(organizationId: string, conversationId: string, toolCallId: string) {
+  return apiRequest<ConversationDetail>(
+    `/api/organizations/${organizationId}/conversations/${conversationId}/tool-calls/${toolCallId}/reject`,
+    { method: "POST", body: {}, session: "required" },
+  );
+}

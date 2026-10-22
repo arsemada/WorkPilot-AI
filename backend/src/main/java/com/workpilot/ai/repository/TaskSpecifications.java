@@ -41,6 +41,12 @@ public final class TaskSpecifications {
         return (root, query, cb) -> cb.lessThanOrEqualTo(root.get("dueDate"), dueBefore);
     }
 
+    public static Specification<Task> overdue(LocalDate today) {
+        return (root, query, cb) -> cb.and(
+                cb.lessThan(root.get("dueDate"), today),
+                root.get("status").in(TaskStatus.TODO, TaskStatus.IN_PROGRESS));
+    }
+
     public static Specification<Task> textSearch(String rawQuery) {
         String escaped = rawQuery.trim().toLowerCase()
                 .replace("\\", "\\\\")

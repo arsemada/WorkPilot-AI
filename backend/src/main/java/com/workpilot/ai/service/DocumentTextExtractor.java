@@ -31,7 +31,17 @@ public class DocumentTextExtractor {
     private static String readPdf(byte[] bytes) {
         try (PDDocument document = Loader.loadPDF(bytes)) {
             PDFTextStripper stripper = new PDFTextStripper();
-            return stripper.getText(document);
+            StringBuilder text = new StringBuilder();
+            int pages = document.getNumberOfPages();
+            for (int page = 1; page <= pages; page++) {
+                stripper.setStartPage(page);
+                stripper.setEndPage(page);
+                if (page > 1) {
+                    text.append('\f');
+                }
+                text.append(stripper.getText(document));
+            }
+            return text.toString();
         } catch (IOException exception) {
             throw new DocumentProcessingException("Text extraction failed");
         }

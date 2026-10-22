@@ -62,7 +62,7 @@ class AssistantIntegrationTest {
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         csrfToken = body.get("token").asText();
         csrfCookie = result.getResponse().getCookie("XSRF-TOKEN");
-        when(aiCompletionClient.complete(anyList()))
+        when(aiCompletionClient.complete(anyList(), anyList()))
                 .thenThrow(new AiUnavailableException("The AI assistant is unavailable."))
                 .thenReturn(new AiCompletion("mocked reply", 9, 2))
                 .thenReturn(new AiCompletion("second reply", 14, 3));
@@ -137,7 +137,7 @@ class AssistantIntegrationTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<AiChatMessage>> captor = ArgumentCaptor.forClass(List.class);
-        verify(aiCompletionClient, times(3)).complete(captor.capture());
+        verify(aiCompletionClient, times(3)).complete(captor.capture(), anyList());
         List<AiChatMessage> followUp = captor.getAllValues().get(2);
         assertEquals("system", followUp.get(0).role());
         assertTrue(followUp.stream().anyMatch(message -> "first question".equals(message.content())));

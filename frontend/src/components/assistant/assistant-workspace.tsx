@@ -1,16 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { ApiError } from "@/lib/api/client";
 import {
+  confirmToolCall,
   createConversation,
   deleteConversation,
   getConversation,
   listConversations,
+  rejectToolCall,
   sendConversationMessage,
 } from "@/lib/api/conversations";
-import type { Conversation, ConversationDetail, Membership } from "@/lib/api/types";
+import type { AssistantToolCall, Conversation, ConversationDetail, Membership } from "@/lib/api/types";
 import {
   readSelectedOrganization,
   subscribeSelectedOrganization,
@@ -47,6 +50,8 @@ export function AssistantWorkspace() {
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingToolId, setPendingToolId] = useState<string | null>(null);
+  const [pendingToolAction, setPendingToolAction] = useState<"confirm" | "reject" | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -166,6 +171,26 @@ export function AssistantWorkspace() {
       setSendError(caught instanceof ApiError ? caught.message : "The message could not be sent.");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function decideToolCall(toolCallId: string, confirm: boolean) {
+    if (!selectedId || pendingToolId) {
+      return;
+    }
+    setPendingToolId(toolCallId);
+    setPendingToolAction(confirm ? "confirm" : "reject");
+    setSendError(null);
+    try {
+      const updated = confirm
+        ? await confirmToolCall(organizationId, selectedId, toolCallId)
+        : await rejectToolCall(organizationId, selectedId, toolCallId);
+      setDetail(updated);
+    } catch (caught) {
+      setSendError(caught instanceof ApiError ? caught.message : "The action could not be updated.");
+    } finally {
+      setPendingToolId(null);
+      setPendingToolAction(null);
     }
   }
 
@@ -293,6 +318,39 @@ export function AssistantWorkspace() {
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{fromUser ? "You" : "Assistant"}</p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-900">{message.content}</p>
+                {!fromUser && message.toolCalls?.map((toolCall) => (
+                  <ToolCallCard
+                    key={toolCall.id}
+                    toolCall={toolCall}
+                    confirming={pendingToolId === toolCall.id && pendingToolAction === "confirm"}
+                    rejecting={pendingToolId === toolCall.id && pendingToolAction === "reject"}
+                    onConfirm={() => void decideToolCall(toolCall.id, true)}
+                    onReject={() => void decideToolCall(toolCall.id, false)}
+                  />
+                ))}
+                {!fromUser && message.documentSupport === false ? (
+                  <p className="mt-2 text-sm text-slate-700">
+                    No matching documents were found. Indexed documents in this organization are used when indexing has finished.
+                  </p>
+                ) : null}
+                {!fromUser && message.sources.length > 0 ? (
+                  <ul className="mt-2 space-y-2">
+                    {message.sources.map((source) => (
+                      <li key={`${message.id}-${source.chunkIndex}-${source.documentTitle}`} className="text-sm text-slate-700">
+                        {source.documentId ? (
+                          <Link className="font-semibold text-blue-800 underline" href={`/documents?document=${source.documentId}`}>
+                            {source.documentTitle}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold text-slate-900">{source.documentTitle}</span>
+                        )}
+                        {source.pageNumber != null ? `, page ${source.pageNumber}` : ""}
+                        {source.sectionLabel ? `, ${source.sectionLabel}` : ""}
+                        <span className="mt-1 block text-slate-600">{source.snippet}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </article>
             );
           })}
@@ -319,7 +377,7 @@ export function AssistantWorkspace() {
             maxLength={MAX_MESSAGE_CHARS}
             disabled={!selectedId || sending}
             placeholder={selectedId ? "Ask a question" : "Start a conversation first"}
-            hint="Enter sends the message. Shift+Enter adds a line. The assistant only sees this conversation."
+            hint="Enter sends the message. Shift+Enter adds a line. Indexed documents can be cited, and task changes wait for confirmation."
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
           />
@@ -348,4 +406,89 @@ export function AssistantWorkspace() {
       </Dialog>
     </div>
   );
+}
+
+function ToolCallCard({
+  toolCall,
+  confirming,
+  rejecting,
+  onConfirm,
+  onReject,
+}: {
+  toolCall: AssistantToolCall;
+  confirming: boolean;
+  rejecting: boolean;
+  onConfirm: () => void;
+  onReject: () => void;
+}) {
+  if (toolCall.name === "list_tasks" && toolCall.status === "COMPLETED") {
+    const tasks = toolCall.result?.tasks ?? [];
+    return (
+      <div className="mt-2 rounded-md border border-slate-200 bg-white p-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Tasks found</p>
+        {tasks.length === 0 ? <p className="mt-1 text-sm text-slate-700">No tasks matched.</p> : null}
+        <ul className="mt-1 space-y-1">
+          {tasks.map((task) => (
+            <li key={task.id} className="text-sm text-slate-800">
+              <Link className="font-semibold text-blue-800 underline" href="/tasks">
+                {task.title}
+              </Link>
+              {` · ${task.status} · ${task.priority}`}
+              {task.dueDate ? ` · due ${task.dueDate}` : ""}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (toolCall.name !== "create_task") {
+    return toolCall.status === "FAILED" && toolCall.errorMessage ? (
+      <p className="mt-2 text-sm text-slate-700">{toolCall.errorMessage}</p>
+    ) : null;
+  }
+  const proposal = toolCall.arguments;
+  if (toolCall.status === "PROPOSED" || confirming || rejecting) {
+    return (
+      <div className="mt-2 rounded-md border border-amber-200 bg-white p-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+          {confirming ? "Creating the task" : rejecting ? "Cancelling this task" : "Awaiting confirmation"}
+        </p>
+        <p className="mt-1 text-sm text-slate-800">This task is not saved yet.</p>
+        <p className="mt-1 text-sm font-semibold text-slate-950">{proposal?.title}</p>
+        <p className="text-sm text-slate-700">
+          {proposal?.priority ? `Priority ${proposal.priority}` : "Priority MEDIUM"}
+          {proposal?.dueDate ? ` · due ${proposal.dueDate}` : ""}
+        </p>
+        {proposal?.description ? <p className="mt-1 text-sm text-slate-700">{proposal.description}</p> : null}
+        <div className="mt-2 flex gap-2">
+          <Button loading={confirming} disabled={rejecting} onClick={onConfirm}>
+            Confirm
+          </Button>
+          <Button variant="secondary" loading={rejecting} disabled={confirming} onClick={onReject}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  if (toolCall.status === "COMPLETED" && toolCall.result?.task) {
+    return (
+      <div className="mt-2 rounded-md border border-emerald-200 bg-white p-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Task saved</p>
+        <p className="mt-1 text-sm text-slate-800">
+          <Link className="font-semibold text-blue-800 underline" href="/tasks">
+            {toolCall.result.task.title}
+          </Link>
+          {` · ${toolCall.result.task.status} · ${toolCall.result.task.priority}`}
+        </p>
+      </div>
+    );
+  }
+  if (toolCall.status === "REJECTED") {
+    return <p className="mt-2 text-sm text-slate-700">You cancelled this task.</p>;
+  }
+  if (toolCall.status === "FAILED") {
+    return <p className="mt-2 text-sm text-slate-700">{toolCall.errorMessage ?? "The task was not saved."}</p>;
+  }
+  return null;
 }

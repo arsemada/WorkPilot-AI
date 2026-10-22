@@ -53,6 +53,19 @@ export function retryDocument(organizationId: string, documentId: string) {
   });
 }
 
+export function reindexDocument(organizationId: string, documentId: string) {
+  return apiRequest<OrganizationDocument>(`/api/organizations/${organizationId}/documents/${documentId}/reindex`, {
+    method: "POST",
+    session: "required",
+  });
+}
+
+export function getDocument(organizationId: string, documentId: string) {
+  return apiRequest<OrganizationDocument>(`/api/organizations/${organizationId}/documents/${documentId}`, {
+    session: "required",
+  });
+}
+
 export async function downloadDocument(organizationId: string, item: OrganizationDocument) {
   const blob = await apiDownload(`/api/organizations/${organizationId}/documents/${item.id}/content`);
   const url = URL.createObjectURL(blob);

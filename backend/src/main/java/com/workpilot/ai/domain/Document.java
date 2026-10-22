@@ -53,6 +53,22 @@ public class Document implements OrganizationScoped {
     @Column(name = "processing_error", length = 300)
     private String processingError;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "indexing_status", nullable = false, length = 20)
+    private IndexingStatus indexingStatus = IndexingStatus.SKIPPED;
+
+    @Column(name = "indexing_error", length = 300)
+    private String indexingError;
+
+    @Column(name = "indexed_model", length = 80)
+    private String indexedModel;
+
+    @Column(name = "indexed_model_version", length = 40)
+    private String indexedModelVersion;
+
+    @Column(name = "indexed_dimensions")
+    private Integer indexedDimensions;
+
     @Column(name = "extracted_text", length = 20000)
     private String extractedText;
 
@@ -168,6 +184,46 @@ public class Document implements OrganizationScoped {
 
     public void setProcessingError(String processingError) {
         this.processingError = processingError;
+    }
+
+    public IndexingStatus getIndexingStatus() {
+        return indexingStatus;
+    }
+
+    public void setIndexingStatus(IndexingStatus indexingStatus) {
+        this.indexingStatus = indexingStatus;
+    }
+
+    public String getIndexingError() {
+        return indexingError;
+    }
+
+    public void setIndexingError(String indexingError) {
+        this.indexingError = indexingError;
+    }
+
+    public String getIndexedModel() {
+        return indexedModel;
+    }
+
+    public void setIndexedModel(String indexedModel) {
+        this.indexedModel = indexedModel;
+    }
+
+    public String getIndexedModelVersion() {
+        return indexedModelVersion;
+    }
+
+    public void setIndexedModelVersion(String indexedModelVersion) {
+        this.indexedModelVersion = indexedModelVersion;
+    }
+
+    public Integer getIndexedDimensions() {
+        return indexedDimensions;
+    }
+
+    public void setIndexedDimensions(Integer indexedDimensions) {
+        this.indexedDimensions = indexedDimensions;
     }
 
     public String getExtractedText() {

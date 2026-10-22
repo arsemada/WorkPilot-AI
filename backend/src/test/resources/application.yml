@@ -19,6 +19,7 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+    locations: classpath:db/migration
   servlet:
     multipart:
       max-file-size: 10MB
@@ -50,6 +51,14 @@ workpilot:
     max-message-chars: 4000
     max-history-messages: 20
     daily-message-limit: 2
+    embedding-model: text-embedding-3-small
+    embedding-model-version: "3"
+    embedding-dimensions: 8
+    max-cosine-distance: 0.2
+    retrieval-limit: 4
+    vector-store: json
+    max-tool-calls: 3
+    tool-budget: 5s
 
 management:
   endpoints:

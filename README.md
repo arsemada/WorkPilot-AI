@@ -129,6 +129,9 @@ Migrations:
 | `V5__activity_events.sql` | Task activity used by the dashboard |
 | `V6__document_processing.sql` | Document storage keys and processing status |
 | `V7__conversations.sql` | Assistant conversations and messages |
+| `V8__document_chunks.sql` | Document chunks, indexing status, and answer sources |
+| `V9__pgvector.sql` | PostgreSQL `vector` extension and similarity index |
+| `V10__assistant_tool_calls.sql` | Assistant task lookup and confirmed task creation |
 
 ## Health checks
 
@@ -193,21 +196,25 @@ An assignee must be an active member of the same organization. The Tasks page li
 
 Documents belong to one organization. Upload, read, and metadata updates use the resource permissions held by every role. Delete uses `RESOURCE_DELETE`, so owners and admins can delete documents and members cannot.
 
-Accepted files are PDF, plain text, CSV, Markdown, PNG, JPEG, WebP, and Word `.docx`, up to 10 MB. The extension is checked against the file bytes, so a renamed file is rejected. PDF, text, CSV, and Markdown files are extracted in the background. Extraction ends as `COMPLETED` or `FAILED`. A failed document can be retried. Extracted text is capped at 20,000 characters. PNG, JPEG, WebP, and Word files are stored for download and are not read for search.
+Accepted files are PDF, plain text, CSV, Markdown, PNG, JPEG, WebP, and Word `.docx`, up to 10 MB. The extension is checked against the file bytes, so a renamed file is rejected. PDF, text, CSV, and Markdown files are extracted in the background. Extraction ends as `COMPLETED` or `FAILED`. A failed document can be retried. Extracted text is capped at 20,000 characters and split into ordered chunks. PNG, JPEG, WebP, and Word files are stored for download and are not read for search.
 
-The database stores a storage key. The file itself stays in the configured directory, `data/documents` for a host backend and the `workpilot_documents` volume in Compose. Set `DOCUMENT_STORAGE_DIR` to move that directory. Replacing local files with object storage later means implementing the same storage key contract.
+A completed text extraction is queued for embedding. Indexing has its own status: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, or `SKIPPED`. Upload success does not mean an embedding was stored. A failed index can be retried. Deleting a document deletes its chunks and embeddings. The configured embedding model is `text-embedding-3-small`, version `3`, with 1,536 dimensions. A document indexed with a different model or dimension is reported as `STALE` until it is indexed again.
 
-The Documents page uploads, searches, pages, downloads, deletes, and retries files through `/api/organizations/{organizationId}/documents`.
+The database stores a storage key. The file itself stays in the configured directory, `data/documents` for a host backend and the `workpilot_documents` volume in Compose. Set `DOCUMENT_STORAGE_DIR` to move that directory. Replacing local files with object storage later means implementing the same storage key contract. Chunk embeddings use pgvector in PostgreSQL. Compose runs `pgvector/pgvector:pg17`.
+
+The Documents page uploads, searches, pages, downloads, deletes, and retries files through `/api/organizations/{organizationId}/documents`. It also shows indexing status.
 
 ## AI Assistant
 
 The assistant keeps a separate conversation history for each member of an organization. Another member of the same organization cannot open those conversations. A caller who is not a member of the organization receives `404`.
 
-Set `OPENAI_API_KEY` in the backend environment. The model defaults to `gpt-4o-mini`. `OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`, and `OPENAI_TIMEOUT` defaults to `30s`. The key stays on the server. Each member can send 40 messages per UTC day. A message can be 4,000 characters. The provider receives the system instruction and the latest 20 messages, and its reply is limited to 800 output tokens.
+Set `OPENAI_API_KEY` in the backend environment. The chat model defaults to `gpt-4o-mini`. Embeddings use `text-embedding-3-small` at 1,536 dimensions. `OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`, and `OPENAI_TIMEOUT` defaults to `30s`. The key stays on the server. Each member can send 40 messages per UTC day. A message can be 4,000 characters. The provider receives the system instruction, up to 20 earlier messages, and any retrieved document passages. Its reply is limited to 800 output tokens.
 
 A missing key or a provider failure returns `503` with a short message. Reaching the daily limit returns `429`. Failed requests are not stored as assistant replies. The Assistant page can send the same draft again.
 
-The assistant answers from the conversation. It does not search documents, change tasks, or call other organization tools.
+When indexed chunks exist for the organization, the assistant retrieves the closest passages and stores those sources with the reply. Passages are treated as untrusted data. If nothing relevant is retrieved, the reply is marked as having no document support and the page says that no matching documents were found.
+
+The assistant can look up tasks and prepare a new task. Preparing a task does not save it. The member confirms the title, priority, and due date before the task service creates the task. The saved task is the one returned by that service, and the same confirmation cannot create a second copy. A caller who does not own the conversation cannot confirm the action. Tool arguments cannot choose an organization or a user id. Each request allows 3 tool calls and a 15 second tool budget.
 
 ## Dashboard
 

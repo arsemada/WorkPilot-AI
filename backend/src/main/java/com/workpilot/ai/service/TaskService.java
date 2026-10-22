@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -155,6 +156,41 @@ public class TaskService {
                 PageRequest.of(page, size, sortBy(sort, direction)));
         List<TaskResponse> items = result.getContent().stream().map(TaskResponse::fromEntity).toList();
         return new TaskPageResponse(items, result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
+    }
+
+    @Transactional(readOnly = true)
+    public List<TaskResponse> lookupForAssistant(
+            UUID organizationId,
+            TaskStatus status,
+            TaskPriority priority,
+            UUID assigneeId,
+            boolean overdue,
+            String query) {
+        accessService.requirePermission(organizationId, Permission.RESOURCE_READ);
+        String search = query == null ? null : query.trim();
+        if (search != null && search.length() > MAX_SEARCH_LENGTH) {
+            throw new BadRequestException("Search text must be at most 200 characters");
+        }
+        Specification<Task> specification = TaskSpecifications.inOrganization(organizationId);
+        if (overdue) {
+            specification = specification.and(TaskSpecifications.overdue(LocalDate.now(ZoneOffset.UTC)));
+        }
+        if (status != null) {
+            specification = specification.and(TaskSpecifications.hasStatus(status));
+        }
+        if (priority != null) {
+            specification = specification.and(TaskSpecifications.hasPriority(priority));
+        }
+        if (assigneeId != null) {
+            specification = specification.and(TaskSpecifications.hasAssignee(assigneeId));
+        }
+        if (search != null && !search.isEmpty()) {
+            specification = specification.and(TaskSpecifications.textSearch(search));
+        }
+        return taskRepository.findAll(specification, PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "updatedAt")))
+                .stream()
+                .map(TaskResponse::fromEntity)
+                .toList();
     }
 
     @Transactional(readOnly = true)

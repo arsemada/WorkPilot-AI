@@ -1,7 +1,9 @@
 package com.workpilot.ai.service;
 
+import com.workpilot.ai.config.AiProperties;
 import com.workpilot.ai.config.DocumentStorageProperties;
 import com.workpilot.ai.domain.Document;
+import com.workpilot.ai.domain.IndexingStatus;
 import com.workpilot.ai.domain.Permission;
 import com.workpilot.ai.domain.ProcessingStatus;
 import com.workpilot.ai.domain.OrganizationMembership;
@@ -11,6 +13,7 @@ import com.workpilot.ai.dto.DocumentStatusResponse;
 import com.workpilot.ai.dto.UpdateDocumentRequest;
 import com.workpilot.ai.exception.BadRequestException;
 import com.workpilot.ai.exception.ResourceNotFoundException;
+import com.workpilot.ai.repository.DocumentChunkRepository;
 import com.workpilot.ai.repository.DocumentRepository;
 import com.workpilot.ai.repository.DocumentSpecifications;
 import com.workpilot.ai.security.OrganizationAccessService;
@@ -69,22 +72,31 @@ public class DocumentService {
     private static final Set<String> TEXT_TYPES = Set.of("text/plain", "text/csv", "text/markdown");
 
     private final DocumentRepository documentRepository;
+    private final DocumentChunkRepository chunkRepository;
     private final DocumentStorage documentStorage;
     private final DocumentStorageProperties storageProperties;
     private final OrganizationAccessService accessService;
     private final DocumentProcessor documentProcessor;
+    private final DocumentIndexer documentIndexer;
+    private final AiProperties aiProperties;
 
     public DocumentService(
             DocumentRepository documentRepository,
+            DocumentChunkRepository chunkRepository,
             DocumentStorage documentStorage,
             DocumentStorageProperties storageProperties,
             OrganizationAccessService accessService,
-            DocumentProcessor documentProcessor) {
+            DocumentProcessor documentProcessor,
+            DocumentIndexer documentIndexer,
+            AiProperties aiProperties) {
         this.documentRepository = documentRepository;
+        this.chunkRepository = chunkRepository;
         this.documentStorage = documentStorage;
         this.storageProperties = storageProperties;
         this.accessService = accessService;
         this.documentProcessor = documentProcessor;
+        this.documentIndexer = documentIndexer;
+        this.aiProperties = aiProperties;
     }
 
     @Transactional
@@ -120,6 +132,7 @@ public class DocumentService {
         document.setSizeBytes(bytes.length);
         document.setStorageKey(storageKey);
         document.setProcessingStatus(ProcessingStatus.PENDING);
+        document.setIndexingStatus(IndexingStatus.SKIPPED);
         try {
             Document saved = documentRepository.save(document);
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -128,7 +141,7 @@ public class DocumentService {
                     documentProcessor.enqueue(organizationId, documentId);
                 }
             });
-            return DocumentResponse.fromEntity(saved);
+            return present(saved);
         } catch (RuntimeException exception) {
             documentStorage.delete(storageKey);
             throw exception;
@@ -169,14 +182,14 @@ public class DocumentService {
         Page<Document> result = documentRepository.findAll(
                 specification,
                 PageRequest.of(page, size, Sort.by(new Sort.Order(sortDirection, sort))));
-        List<DocumentResponse> items = result.getContent().stream().map(DocumentResponse::fromEntity).toList();
+        List<DocumentResponse> items = result.getContent().stream().map(this::present).toList();
         return new DocumentPageResponse(items, result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
     @Transactional(readOnly = true)
     public DocumentResponse get(UUID organizationId, UUID documentId) {
         accessService.requirePermission(organizationId, Permission.RESOURCE_READ);
-        return DocumentResponse.fromEntity(requireDocument(organizationId, documentId));
+        return present(requireDocument(organizationId, documentId));
     }
 
     @Transactional(readOnly = true)
@@ -204,13 +217,17 @@ public class DocumentService {
         if (request.isDescriptionPresent()) {
             document.setDescription(cleanDescription(request.getDescription()));
         }
-        return DocumentResponse.fromEntity(documentRepository.save(document));
+        return present(documentRepository.save(document));
     }
 
     @Transactional(readOnly = true)
     public DocumentStatusResponse status(UUID organizationId, UUID documentId) {
         accessService.requirePermission(organizationId, Permission.RESOURCE_READ);
-        return DocumentStatusResponse.fromEntity(requireDocument(organizationId, documentId));
+        return DocumentStatusResponse.fromEntity(
+                requireDocument(organizationId, documentId),
+                aiProperties.getEmbeddingModel(),
+                aiProperties.getEmbeddingModelVersion(),
+                aiProperties.getEmbeddingDimensions());
     }
 
     @Transactional
@@ -223,6 +240,7 @@ public class DocumentService {
         document.setProcessingStatus(ProcessingStatus.PENDING);
         document.setProcessingError(null);
         document.setExtractedText(null);
+        clearIndex(document);
         Document saved = documentRepository.save(document);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -230,7 +248,32 @@ public class DocumentService {
                 documentProcessor.enqueue(organizationId, documentId);
             }
         });
-        return DocumentResponse.fromEntity(saved);
+        return present(saved);
+    }
+
+    @Transactional
+    public DocumentResponse reindex(UUID organizationId, UUID documentId) {
+        accessService.requirePermission(organizationId, Permission.RESOURCE_UPDATE);
+        Document document = requireDocument(organizationId, documentId);
+        if (document.getProcessingStatus() != ProcessingStatus.COMPLETED) {
+            throw new BadRequestException("The document text is not ready to index.");
+        }
+        if (document.getExtractedText() == null || document.getExtractedText().isBlank()) {
+            throw new BadRequestException("This document has no text to index.");
+        }
+        if (document.getIndexingStatus() == IndexingStatus.PROCESSING) {
+            throw new BadRequestException("Indexing is already running.");
+        }
+        document.setIndexingStatus(IndexingStatus.PENDING);
+        document.setIndexingError(null);
+        Document saved = documentRepository.save(document);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                documentIndexer.enqueue(organizationId, documentId);
+            }
+        });
+        return present(saved);
     }
 
     @Transactional
@@ -245,6 +288,23 @@ public class DocumentService {
     private Document requireDocument(UUID organizationId, UUID documentId) {
         return documentRepository.findByIdAndOrganizationId(documentId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
+    }
+
+    private DocumentResponse present(Document document) {
+        return DocumentResponse.fromEntity(
+                document,
+                aiProperties.getEmbeddingModel(),
+                aiProperties.getEmbeddingModelVersion(),
+                aiProperties.getEmbeddingDimensions());
+    }
+
+    private void clearIndex(Document document) {
+        chunkRepository.deleteByDocumentId(document.getId());
+        document.setIndexingStatus(IndexingStatus.SKIPPED);
+        document.setIndexingError(null);
+        document.setIndexedModel(null);
+        document.setIndexedModelVersion(null);
+        document.setIndexedDimensions(null);
     }
 
     private static String requireTitle(String title) {

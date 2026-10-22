@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { ApiError } from "@/lib/api/client";
 import {
   deleteDocument,
   downloadDocument,
+  getDocument,
   listDocuments,
+  reindexDocument,
   retryDocument,
   updateDocument,
   uploadDocument,
@@ -17,8 +20,12 @@ import {
   MAX_DOCUMENT_BYTES,
   formatFileSize,
   formatUploadedAt,
+  indexingLabel,
+  indexingTone,
   isAllowedDocument,
+  isIndexing,
   isProcessing,
+  canReindex,
   processingLabel,
   processingTone,
 } from "@/lib/documents";
@@ -43,6 +50,9 @@ function hasPermission(membership: Membership | undefined, permission: Permissio
 
 export function DocumentsWorkspace() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const requestedDocumentId = searchParams.get("document");
+  const openedDocumentKey = useRef<string | null>(null);
   const { showToast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const memberships = useMemo(
@@ -132,7 +142,9 @@ export function DocumentsWorkspace() {
     return () => window.clearTimeout(handle);
   }, [load]);
 
-  const processing = result?.items.some((item) => isProcessing(item.processingStatus)) ?? false;
+  const processing =
+    (result?.items.some((item) => isProcessing(item.processingStatus) || isIndexing(item.indexingStatus)) ?? false) ||
+    (selected != null && (isProcessing(selected.processingStatus) || isIndexing(selected.indexingStatus)));
 
   useEffect(() => {
     if (!processing) {
@@ -143,6 +155,35 @@ export function DocumentsWorkspace() {
     }, 2000);
     return () => window.clearInterval(handle);
   }, [processing, load]);
+
+  useEffect(() => {
+    if (!organizationId || !requestedDocumentId) {
+      return;
+    }
+    const key = `${organizationId}:${requestedDocumentId}`;
+    if (openedDocumentKey.current === key) {
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      openedDocumentKey.current = key;
+      void getDocument(organizationId, requestedDocumentId)
+        .then((document) => {
+          if (!cancelled) {
+            setSelected(document);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setError("That document could not be opened.");
+          }
+        });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [organizationId, requestedDocumentId]);
 
   function chooseOrganization(nextId: string) {
     writeSelectedOrganization(nextId);
@@ -254,6 +295,23 @@ export function DocumentsWorkspace() {
       showToast({
         tone: "error",
         message: caught instanceof ApiError ? caught.message : "The document could not be retried.",
+      });
+    } finally {
+      setRetryingId(null);
+    }
+  }
+
+  async function reindex(document: OrganizationDocument) {
+    setRetryingId(document.id);
+    try {
+      const updated = await reindexDocument(organizationId, document.id);
+      setSelected((current) => (current?.id === updated.id ? updated : current));
+      showToast({ tone: "success", message: "Indexing started." });
+      await load(true);
+    } catch (caught) {
+      showToast({
+        tone: "error",
+        message: caught instanceof ApiError ? caught.message : "The document could not be indexed.",
       });
     } finally {
       setRetryingId(null);
@@ -380,6 +438,11 @@ export function DocumentsWorkspace() {
                   <StatusBadge tone={processingTone(document.processingStatus)}>
                     {processingLabel(document.processingStatus)}
                   </StatusBadge>
+                  {document.processingStatus === "COMPLETED" ? (
+                    <StatusBadge tone={indexingTone(document.indexingStatus)}>
+                      {indexingLabel(document.indexingStatus)}
+                    </StatusBadge>
+                  ) : null}
                   {document.processingStatus === "FAILED" && canUpdate ? (
                     <button
                       type="button"
@@ -388,6 +451,16 @@ export function DocumentsWorkspace() {
                       onClick={() => void retry(document)}
                     >
                       Retry
+                    </button>
+                  ) : null}
+                  {canUpdate && canReindex(document) ? (
+                    <button
+                      type="button"
+                      className="block text-xs font-semibold text-blue-800"
+                      disabled={retryingId === document.id}
+                      onClick={() => void reindex(document)}
+                    >
+                      {document.indexingStatus === "PENDING" ? "Index" : "Retry indexing"}
                     </button>
                   ) : null}
                 </div>
@@ -453,8 +526,8 @@ export function DocumentsWorkspace() {
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
             <p className="text-sm text-slate-600">
-              PDF, text, CSV, and Markdown are read for search after upload. PNG, JPEG, WebP, and Word files are stored
-              for download. Up to 10 MB.
+              PDF, text, CSV, and Markdown are extracted, then indexed for the assistant. Upload can succeed before indexing
+              finishes. PNG, JPEG, WebP, and Word files are stored for download. Up to 10 MB.
             </p>
           </div>
           <div className="flex justify-end gap-2">
@@ -498,12 +571,27 @@ export function DocumentsWorkspace() {
               <StatusBadge tone={processingTone(selected.processingStatus)}>
                 {processingLabel(selected.processingStatus)}
               </StatusBadge>
+              {selected.processingStatus === "COMPLETED" ? (
+                <StatusBadge tone={indexingTone(selected.indexingStatus)}>
+                  {indexingLabel(selected.indexingStatus)}
+                </StatusBadge>
+              ) : null}
               {selected.processingError ? (
                 <p className="text-sm text-red-800">{selected.processingError}</p>
               ) : null}
+              {selected.indexingError ? <p className="text-sm text-red-800">{selected.indexingError}</p> : null}
             </div>
             {isProcessing(selected.processingStatus) ? (
               <p className="text-sm text-slate-700">Text extraction is still running.</p>
+            ) : null}
+            {selected.indexingStatus === "PROCESSING" ? (
+              <p className="text-sm text-slate-700">Indexing is still running. The assistant can use this document after it is indexed.</p>
+            ) : null}
+            {selected.indexingStatus === "PENDING" && selected.processingStatus === "COMPLETED" ? (
+              <p className="text-sm text-slate-700">This document has extracted text and has not been indexed yet.</p>
+            ) : null}
+            {selected.indexingStatus === "FAILED" ? (
+              <p className="text-sm text-slate-700">Indexing failed. The file is stored, and indexing can be tried again.</p>
             ) : null}
             {selected.processingStatus === "COMPLETED" && selected.textPreview ? (
               <p className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-800">{selected.textPreview}</p>
@@ -515,6 +603,11 @@ export function DocumentsWorkspace() {
               {selected.processingStatus === "FAILED" && canUpdate ? (
                 <Button loading={retryingId === selected.id} onClick={() => void retry(selected)}>
                   Retry extraction
+                </Button>
+              ) : null}
+              {canUpdate && canReindex(selected) ? (
+                <Button loading={retryingId === selected.id} onClick={() => void reindex(selected)}>
+                  {selected.indexingStatus === "PENDING" ? "Index" : "Retry indexing"}
                 </Button>
               ) : null}
               {canDelete ? (

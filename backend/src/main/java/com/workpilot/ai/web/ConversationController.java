@@ -71,4 +71,22 @@ public class ConversationController {
     public void delete(@PathVariable UUID organizationId, @PathVariable UUID conversationId) {
         conversationService.delete(organizationId, conversationId);
     }
+
+    @PostMapping("/{conversationId}/tool-calls/{toolCallId}/confirm")
+    @Operation(summary = "Confirm a proposed task and save it")
+    public ConversationDetailResponse confirmToolCall(
+            @PathVariable UUID organizationId,
+            @PathVariable UUID conversationId,
+            @PathVariable UUID toolCallId) {
+        return conversationService.confirmToolCall(organizationId, conversationId, toolCallId);
+    }
+
+    @PostMapping("/{conversationId}/tool-calls/{toolCallId}/reject")
+    @Operation(summary = "Reject a proposed task")
+    public ConversationDetailResponse rejectToolCall(
+            @PathVariable UUID organizationId,
+            @PathVariable UUID conversationId,
+            @PathVariable UUID toolCallId) {
+        return conversationService.rejectToolCall(organizationId, conversationId, toolCallId);
+    }
 }

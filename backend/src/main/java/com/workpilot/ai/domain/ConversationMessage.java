@@ -42,6 +42,9 @@ public class ConversationMessage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "document_support")
+    private Boolean documentSupport;
+
     public ConversationMessage() {
     }
 
@@ -106,5 +109,13 @@ public class ConversationMessage {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Boolean getDocumentSupport() {
+        return documentSupport;
+    }
+
+    public void setDocumentSupport(Boolean documentSupport) {
+        this.documentSupport = documentSupport;
     }
 }

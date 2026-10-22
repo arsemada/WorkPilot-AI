@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -59,6 +60,11 @@ public class OpenAiCompletionClient implements AiCompletionClient {
 
     @Override
     public AiCompletion complete(List<AiChatMessage> messages) {
+        return complete(messages, List.of());
+    }
+
+    @Override
+    public AiCompletion complete(List<AiChatMessage> messages, List<AiToolSpec> tools) {
         String apiKey = properties.getApiKey() == null ? "" : properties.getApiKey().trim();
         String model = properties.getModel() == null ? "" : properties.getModel().trim();
         if (apiKey.isEmpty() || model.isEmpty() || !supportedBaseUrl(properties.getBaseUrl())) {
@@ -70,9 +76,18 @@ public class OpenAiCompletionClient implements AiCompletionClient {
         body.put("max_tokens", Math.max(1, properties.getMaxOutputTokens()));
         ArrayNode messageNodes = body.putArray("messages");
         for (AiChatMessage message : messages) {
-            ObjectNode node = messageNodes.addObject();
-            node.put("role", message.role());
-            node.put("content", message.content());
+            messageNodes.add(messageNode(message));
+        }
+        if (tools != null && !tools.isEmpty()) {
+            ArrayNode toolNodes = body.putArray("tools");
+            for (AiToolSpec tool : tools) {
+                ObjectNode node = toolNodes.addObject();
+                node.put("type", "function");
+                ObjectNode function = node.putObject("function");
+                function.put("name", tool.name());
+                function.put("description", tool.description());
+                function.set("parameters", tool.parameters());
+            }
         }
 
         try {
@@ -121,20 +136,70 @@ public class OpenAiCompletionClient implements AiCompletionClient {
             if (!choices.isArray() || choices.isEmpty()) {
                 throw new AiUnavailableException(UNAVAILABLE);
             }
-            String content = textOf(choices.get(0).path("message").path("content"));
-            if (content.isBlank()) {
+            JsonNode message = choices.get(0).path("message");
+            String content = textOf(message.path("content"));
+            List<AiToolCall> toolCalls = toolCalls(message.path("tool_calls"));
+            if (content.isBlank() && toolCalls.isEmpty()) {
                 throw new AiUnavailableException(UNAVAILABLE);
             }
             JsonNode usage = root.path("usage");
             int promptTokens = usage.path("prompt_tokens").asInt(0);
             int completionTokens = usage.path("completion_tokens").asInt(0);
-            return new AiCompletion(content, promptTokens, completionTokens);
+            return new AiCompletion(content, promptTokens, completionTokens, toolCalls);
         } catch (AiUnavailableException exception) {
             throw exception;
         } catch (Exception exception) {
             log.warn("AI provider response could not be parsed");
             throw new AiUnavailableException(UNAVAILABLE);
         }
+    }
+
+    private ObjectNode messageNode(AiChatMessage message) {
+        ObjectNode node = objectMapper.createObjectNode();
+        if ("tool".equals(message.role())) {
+            node.put("role", "tool");
+            node.put("tool_call_id", message.toolCallId() == null ? "" : message.toolCallId());
+            node.put("content", message.content());
+            return node;
+        }
+        node.put("role", message.role());
+        if (message.toolCalls().isEmpty()) {
+            node.put("content", message.content());
+            return node;
+        }
+        if (message.content().isBlank()) {
+            node.putNull("content");
+        } else {
+            node.put("content", message.content());
+        }
+        ArrayNode calls = node.putArray("tool_calls");
+        for (AiToolCall call : message.toolCalls()) {
+            ObjectNode tool = calls.addObject();
+            tool.put("id", call.id());
+            tool.put("type", "function");
+            ObjectNode function = tool.putObject("function");
+            function.put("name", call.name());
+            function.put("arguments", call.arguments() == null ? "{}" : call.arguments());
+        }
+        return node;
+    }
+
+    private static List<AiToolCall> toolCalls(JsonNode nodes) {
+        if (!nodes.isArray() || nodes.isEmpty()) {
+            return List.of();
+        }
+        List<AiToolCall> calls = new ArrayList<>();
+        for (JsonNode call : nodes) {
+            String id = call.path("id").asText("");
+            String name = call.path("function").path("name").asText("");
+            if (id.isBlank() || name.isBlank() || name.length() > 40) {
+                throw new AiUnavailableException(UNAVAILABLE);
+            }
+            JsonNode arguments = call.path("function").path("arguments");
+            String argumentText = arguments.isTextual() ? arguments.asText() : arguments.isMissingNode() ? "{}" : arguments.toString();
+            calls.add(new AiToolCall(id, name, argumentText));
+        }
+        return List.copyOf(calls);
     }
 
     private static String textOf(JsonNode content) {

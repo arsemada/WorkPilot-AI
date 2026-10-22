@@ -120,6 +120,8 @@ export type OrganizationDocument = {
   storageKey: string;
   processingStatus: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
   processingError: string | null;
+  indexingStatus: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "SKIPPED" | "STALE";
+  indexingError: string | null;
   textIndexed: boolean;
   textPreview: string | null;
   uploadedById: string;
@@ -209,10 +211,45 @@ export type Conversation = {
   updatedAt: string;
 };
 
+export type MessageSource = {
+  documentId: string | null;
+  documentTitle: string;
+  chunkIndex: number;
+  pageNumber: number | null;
+  sectionLabel: string | null;
+  snippet: string;
+};
+
+export type ToolCallStatus = "PROPOSED" | "EXECUTING" | "COMPLETED" | "REJECTED" | "FAILED";
+
+export type AssistantToolCall = {
+  id: string;
+  name: string;
+  status: ToolCallStatus;
+  arguments: {
+    title?: string;
+    description?: string | null;
+    priority?: string | null;
+    dueDate?: string | null;
+    overdue?: boolean;
+    mine?: boolean;
+    query?: string | null;
+    status?: string | null;
+  } | null;
+  result: {
+    task?: { id: string; title: string; status: string; priority: string; dueDate: string | null };
+    tasks?: Array<{ id: string; title: string; status: string; priority: string; dueDate: string | null }>;
+  } | null;
+  errorMessage: string | null;
+};
+
 export type ConversationMessage = {
   id: string;
   role: MessageRole;
   content: string;
+  documentSupport: boolean | null;
+  sources: MessageSource[];
+  toolCalls: AssistantToolCall[];
   createdAt: string;
 };
 

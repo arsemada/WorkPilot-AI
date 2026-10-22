@@ -10,7 +10,7 @@ This document records how the WorkPilot AI repository was initialized. It descri
 - **Springdoc OpenAPI 2.8.14.** The 2.8 line supports Spring Boot 3.5. Springdoc 3.x targets Spring Boot 4 and is not used.
 - **Spring Security is installed and intentionally open.** `DevelopmentSecurityConfig` permits every request, disables form login, HTTP basic, and CSRF, and registers an empty in-memory user service so Boot does not generate a default password. This exists so `/actuator/health` is reachable. It is not an authentication system.
 - **Schema management.** `spring.jpa.hibernate.ddl-auto` is `none`. The app does not create or alter tables. No Flyway, Liquibase, entities, or init SQL are included. `infrastructure/docker/postgres/init` is mounted for later scripts and is empty.
-- **PostgreSQL 17.** Official `postgres:17` image. Credentials come from environment variables.
+- **PostgreSQL 17 with pgvector.** Image `pgvector/pgvector:pg17`. Credentials come from environment variables.
 - **Host port 5434.** Port 5432 is occupied by a local `postgres.exe`. Port 5433 is occupied by the existing `smartbill-postgres` container. Inside the Compose network the database still listens on 5432.
 - **Persistent volume.** Named volume `workpilot_postgres_data` mounted at `/var/lib/postgresql/data`.
 - **Frontend.** Next.js 16.4.1 App Router, React 19.3.0, TypeScript, Tailwind CSS 4, and ESLint, created with npm. The page identifies the project and prints the configured public API base URL.
@@ -36,7 +36,7 @@ This document records how the WorkPilot AI repository was initialized. It descri
 | Tailwind CSS | 4.3.3 |
 | TypeScript | 5.9.3 |
 | ESLint | 9.39.5 |
-| PostgreSQL image | `postgres:17` (running container reports 17.11) |
+| PostgreSQL image | `pgvector/pgvector:pg17` |
 | PostgreSQL JDBC | 42.7.11 |
 | Hibernate ORM | 6.6.53.Final |
 | Docker | 29.4.1 |
@@ -72,12 +72,15 @@ Resolved Maven and npm dependency versions are recorded after verification in th
 | `OPENAI_MODEL` | Backend | `gpt-4o-mini` when unset |
 | `OPENAI_BASE_URL` | Backend | `https://api.openai.com/v1` when unset |
 | `OPENAI_TIMEOUT` | Backend | `30s` when unset |
+| `EMBEDDING_MODEL` | Backend | `text-embedding-3-small` when unset |
+| `EMBEDDING_MODEL_VERSION` | Backend | `3` when unset |
+| `EMBEDDING_DIMENSIONS` | Backend | `1536` when unset. Must match the pgvector column |
 
 ## Limitations
 
 - Phase 1 replaced the temporary permit-all filter with cookie sessions, BCrypt passwords, and organization roles. See [API.md](API.md).
 - Flyway owns the schema. The initial tables are users, organizations, and organization memberships.
-- Document text extraction runs in the backend. The assistant calls OpenAI when `OPENAI_API_KEY` is set. Workflows remain a placeholder.
+- Document text extraction and embedding run in the backend. The assistant calls OpenAI when `OPENAI_API_KEY` is set and can cite indexed document passages. Workflows remain a placeholder.
 - Actuator health details are visible without authentication.
 - The local development password lives only in gitignored `.env` files, but `.env.example` contains the obvious placeholder `change-me`.
 - Host execution uses JDK 25 because JDK 21 is not installed. The compiled target and the container runtime are Java 21.
