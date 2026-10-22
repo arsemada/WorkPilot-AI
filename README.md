@@ -127,6 +127,8 @@ Migrations:
 | `V3__tasks.sql` | Organization tasks, with status and priority checks |
 | `V4__documents.sql` | Organization documents and allowed file types |
 | `V5__activity_events.sql` | Task activity used by the dashboard |
+| `V6__document_processing.sql` | Document storage keys and processing status |
+| `V7__conversations.sql` | Assistant conversations and messages |
 
 ## Health checks
 
@@ -166,7 +168,7 @@ Public routes are `/login` and `/register`. `/` sends a signed-in user to `/dash
 | `/dashboard` | Task counts, completion trend, recent tasks, and recent activity |
 | `/tasks` | Task list, filters, create, edit, status changes, and delete |
 | `/documents` | Upload, search, download, edit, and delete organization files |
-| `/assistant` | Placeholder |
+| `/assistant` | Conversations with the assistant |
 | `/workflows` | Placeholder |
 | `/settings` | Placeholder |
 
@@ -191,9 +193,21 @@ An assignee must be an active member of the same organization. The Tasks page li
 
 Documents belong to one organization. Upload, read, and metadata updates use the resource permissions held by every role. Delete uses `RESOURCE_DELETE`, so owners and admins can delete documents and members cannot.
 
-Accepted files are PDF, plain text, CSV, Markdown, PNG, JPEG, WebP, and Word `.docx`, up to 10 MB. Text, CSV, and Markdown files are indexed so search can match their contents. Other accepted types are stored for download. A host backend keeps files under `data/documents`. Compose stores them in the `workpilot_documents` volume.
+Accepted files are PDF, plain text, CSV, Markdown, PNG, JPEG, WebP, and Word `.docx`, up to 10 MB. The extension is checked against the file bytes, so a renamed file is rejected. PDF, text, CSV, and Markdown files are extracted in the background. Extraction ends as `COMPLETED` or `FAILED`. A failed document can be retried. Extracted text is capped at 20,000 characters. PNG, JPEG, WebP, and Word files are stored for download and are not read for search.
 
-The Documents page uploads, searches, pages, downloads, and deletes files through `/api/organizations/{organizationId}/documents`.
+The database stores a storage key. The file itself stays in the configured directory, `data/documents` for a host backend and the `workpilot_documents` volume in Compose. Set `DOCUMENT_STORAGE_DIR` to move that directory. Replacing local files with object storage later means implementing the same storage key contract.
+
+The Documents page uploads, searches, pages, downloads, deletes, and retries files through `/api/organizations/{organizationId}/documents`.
+
+## AI Assistant
+
+The assistant keeps a separate conversation history for each member of an organization. Another member of the same organization cannot open those conversations. A caller who is not a member of the organization receives `404`.
+
+Set `OPENAI_API_KEY` in the backend environment. The model defaults to `gpt-4o-mini`. `OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`, and `OPENAI_TIMEOUT` defaults to `30s`. The key stays on the server. Each member can send 40 messages per UTC day. A message can be 4,000 characters. The provider receives the system instruction and the latest 20 messages, and its reply is limited to 800 output tokens.
+
+A missing key or a provider failure returns `503` with a short message. Reaching the daily limit returns `429`. Failed requests are not stored as assistant replies. The Assistant page can send the same draft again.
+
+The assistant answers from the conversation. It does not search documents, change tasks, or call other organization tools.
 
 ## Dashboard
 

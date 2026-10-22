@@ -11,6 +11,7 @@ public class DocumentStorageProperties {
 
     private String directory = "data/documents";
     private long maxBytes = DEFAULT_MAX_BYTES;
+    private boolean processingSync = false;
 
     public String getDirectory() {
         return directory;
@@ -26,5 +27,13 @@ public class DocumentStorageProperties {
 
     public void setMaxBytes(long maxBytes) {
         this.maxBytes = maxBytes;
+    }
+
+    public boolean isProcessingSync() {
+        return processingSync;
+    }
+
+    public void setProcessingSync(boolean processingSync) {
+        this.processingSync = processingSync;
     }
 }

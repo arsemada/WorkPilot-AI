@@ -17,7 +17,7 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("WorkPilot AI API")
                         .version("0.1.0")
-                        .description("Accounts, organizations, memberships, cookie sessions, tasks, documents, and dashboard summaries."))
+                        .description("Accounts, organizations, memberships, cookie sessions, tasks, documents with text extraction, assistant conversations, and dashboard summaries."))
                 .components(new Components()
                         .addSecuritySchemes("sessionCookie", new SecurityScheme()
                                 .type(SecurityScheme.Type.APIKEY)

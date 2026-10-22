@@ -68,12 +68,16 @@ Resolved Maven and npm dependency versions are recorded after verification in th
 | `FRONTEND_PORT` | Compose host mapping | `3000` |
 | `NEXT_PUBLIC_API_BASE_URL` | Browser bundle | `http://localhost:8081` |
 | `API_BASE_URL` | Next.js server | host: `http://localhost:8081`; Compose: `http://backend:8081` |
+| `OPENAI_API_KEY` | Backend | empty until a real key is provided. Server-side only |
+| `OPENAI_MODEL` | Backend | `gpt-4o-mini` when unset |
+| `OPENAI_BASE_URL` | Backend | `https://api.openai.com/v1` when unset |
+| `OPENAI_TIMEOUT` | Backend | `30s` when unset |
 
 ## Limitations
 
 - Phase 1 replaced the temporary permit-all filter with cookie sessions, BCrypt passwords, and organization roles. See [API.md](API.md).
 - Flyway owns the schema. The initial tables are users, organizations, and organization memberships.
-- No AI provider, background jobs, or extra infrastructure.
+- Document text extraction runs in the backend. The assistant calls OpenAI when `OPENAI_API_KEY` is set. Workflows remain a placeholder.
 - Actuator health details are visible without authentication.
 - The local development password lives only in gitignored `.env` files, but `.env.example` contains the obvious placeholder `change-me`.
 - Host execution uses JDK 25 because JDK 21 is not installed. The compiled target and the container runtime are Java 21.

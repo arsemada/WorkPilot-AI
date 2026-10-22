@@ -117,6 +117,9 @@ export type OrganizationDocument = {
   originalFileName: string;
   contentType: string;
   sizeBytes: number;
+  storageKey: string;
+  processingStatus: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  processingError: string | null;
   textIndexed: boolean;
   textPreview: string | null;
   uploadedById: string;
@@ -194,4 +197,25 @@ export type ActivityEvent = {
   actorId: string;
   actorName: string;
   occurredAt: string;
+};
+
+export type MessageRole = "USER" | "ASSISTANT";
+
+export type Conversation = {
+  id: string;
+  organizationId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConversationMessage = {
+  id: string;
+  role: MessageRole;
+  content: string;
+  createdAt: string;
+};
+
+export type ConversationDetail = Conversation & {
+  messages: ConversationMessage[];
 };

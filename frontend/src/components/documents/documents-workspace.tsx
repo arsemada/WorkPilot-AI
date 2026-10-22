@@ -7,6 +7,7 @@ import {
   deleteDocument,
   downloadDocument,
   listDocuments,
+  retryDocument,
   updateDocument,
   uploadDocument,
 } from "@/lib/api/documents";
@@ -17,6 +18,9 @@ import {
   formatFileSize,
   formatUploadedAt,
   isAllowedDocument,
+  isProcessing,
+  processingLabel,
+  processingTone,
 } from "@/lib/documents";
 import {
   readSelectedOrganization,
@@ -27,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Form, FormBanner, SelectField, TextAreaField, TextField } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/loading";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 
@@ -70,6 +75,7 @@ export function DocumentsWorkspace() {
   const [pendingDelete, setPendingDelete] = useState<OrganizationDocument | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -84,11 +90,13 @@ export function DocumentsWorkspace() {
   const canUpdate = hasPermission(membership, "RESOURCE_UPDATE");
   const canDelete = hasPermission(membership, "RESOURCE_DELETE");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!organizationId) {
       return;
     }
-    setLoading(true);
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const documents = await listDocuments(organizationId, {
@@ -99,13 +107,21 @@ export function DocumentsWorkspace() {
         direction: "desc",
       });
       setResult(documents);
+      setSelected((current) => {
+        if (!current) {
+          return current;
+        }
+        return documents.items.find((item) => item.id === current.id) ?? current;
+      });
       if (documents.totalPages > 0 && page > documents.totalPages - 1) {
         setPage(documents.totalPages - 1);
       }
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : "Documents could not be loaded.");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [organizationId, query, page]);
 
@@ -115,6 +131,18 @@ export function DocumentsWorkspace() {
     }, 0);
     return () => window.clearTimeout(handle);
   }, [load]);
+
+  const processing = result?.items.some((item) => isProcessing(item.processingStatus)) ?? false;
+
+  useEffect(() => {
+    if (!processing) {
+      return;
+    }
+    const handle = window.setInterval(() => {
+      void load(true);
+    }, 2000);
+    return () => window.clearInterval(handle);
+  }, [processing, load]);
 
   function chooseOrganization(nextId: string) {
     writeSelectedOrganization(nextId);
@@ -212,6 +240,23 @@ export function DocumentsWorkspace() {
       });
     } finally {
       setDownloading(false);
+    }
+  }
+
+  async function retry(document: OrganizationDocument) {
+    setRetryingId(document.id);
+    try {
+      const updated = await retryDocument(organizationId, document.id);
+      setSelected((current) => (current?.id === updated.id ? updated : current));
+      showToast({ tone: "success", message: "Extraction started again." });
+      await load(true);
+    } catch (caught) {
+      showToast({
+        tone: "error",
+        message: caught instanceof ApiError ? caught.message : "The document could not be retried.",
+      });
+    } finally {
+      setRetryingId(null);
     }
   }
 
@@ -328,6 +373,27 @@ export function DocumentsWorkspace() {
               cell: (document) => document.originalFileName,
             },
             {
+              id: "status",
+              header: "Status",
+              cell: (document) => (
+                <div className="space-y-1">
+                  <StatusBadge tone={processingTone(document.processingStatus)}>
+                    {processingLabel(document.processingStatus)}
+                  </StatusBadge>
+                  {document.processingStatus === "FAILED" && canUpdate ? (
+                    <button
+                      type="button"
+                      className="block text-xs font-semibold text-blue-800"
+                      disabled={retryingId === document.id}
+                      onClick={() => void retry(document)}
+                    >
+                      Retry
+                    </button>
+                  ) : null}
+                </div>
+              ),
+            },
+            {
               id: "size",
               header: "Size",
               cell: (document) => formatFileSize(document.sizeBytes),
@@ -386,7 +452,10 @@ export function DocumentsWorkspace() {
               className="block w-full text-sm text-slate-800"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
-            <p className="text-sm text-slate-600">PDF, text, CSV, Markdown, PNG, JPEG, WebP, or Word. Up to 10 MB.</p>
+            <p className="text-sm text-slate-600">
+              PDF, text, CSV, and Markdown are read for search after upload. PNG, JPEG, WebP, and Word files are stored
+              for download. Up to 10 MB.
+            </p>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setUploadOpen(false)}>
@@ -425,12 +494,29 @@ export function DocumentsWorkspace() {
                 <dd className="text-slate-950">{formatUploadedAt(selected.createdAt)}</dd>
               </div>
             </dl>
-            {selected.textPreview ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone={processingTone(selected.processingStatus)}>
+                {processingLabel(selected.processingStatus)}
+              </StatusBadge>
+              {selected.processingError ? (
+                <p className="text-sm text-red-800">{selected.processingError}</p>
+              ) : null}
+            </div>
+            {isProcessing(selected.processingStatus) ? (
+              <p className="text-sm text-slate-700">Text extraction is still running.</p>
+            ) : null}
+            {selected.processingStatus === "COMPLETED" && selected.textPreview ? (
               <p className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-800">{selected.textPreview}</p>
-            ) : (
+            ) : null}
+            {selected.processingStatus === "COMPLETED" && !selected.textPreview ? (
               <p className="text-sm text-slate-600">Text from this file is not indexed. You can still download it.</p>
-            )}
+            ) : null}
             <div className="flex flex-wrap justify-end gap-2">
+              {selected.processingStatus === "FAILED" && canUpdate ? (
+                <Button loading={retryingId === selected.id} onClick={() => void retry(selected)}>
+                  Retry extraction
+                </Button>
+              ) : null}
               {canDelete ? (
                 <Button variant="danger" onClick={() => setPendingDelete(selected)}>
                   Delete

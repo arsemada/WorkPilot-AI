@@ -1,6 +1,7 @@
 package com.workpilot.ai.dto;
 
 import com.workpilot.ai.domain.Document;
+import com.workpilot.ai.domain.ProcessingStatus;
 import com.workpilot.ai.domain.User;
 
 import java.time.Instant;
@@ -14,6 +15,9 @@ public record DocumentResponse(
         String originalFileName,
         String contentType,
         long sizeBytes,
+        String storageKey,
+        ProcessingStatus processingStatus,
+        String processingError,
         boolean textIndexed,
         String textPreview,
         UUID uploadedById,
@@ -38,6 +42,9 @@ public record DocumentResponse(
                 document.getOriginalFileName(),
                 document.getContentType(),
                 document.getSizeBytes(),
+                document.getStorageKey(),
+                document.getProcessingStatus(),
+                document.getProcessingError(),
                 preview != null,
                 preview,
                 uploader.getId(),

@@ -3,9 +3,11 @@ package com.workpilot.ai.service;
 import com.workpilot.ai.config.DocumentStorageProperties;
 import com.workpilot.ai.domain.Document;
 import com.workpilot.ai.domain.Permission;
+import com.workpilot.ai.domain.ProcessingStatus;
 import com.workpilot.ai.domain.OrganizationMembership;
 import com.workpilot.ai.dto.DocumentPageResponse;
 import com.workpilot.ai.dto.DocumentResponse;
+import com.workpilot.ai.dto.DocumentStatusResponse;
 import com.workpilot.ai.dto.UpdateDocumentRequest;
 import com.workpilot.ai.exception.BadRequestException;
 import com.workpilot.ai.exception.ResourceNotFoundException;
@@ -23,11 +25,17 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,11 +45,14 @@ import java.util.UUID;
 @Service
 public class DocumentService {
 
-    static final int MAX_EXTRACTED_CHARS = 20_000;
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_SEARCH_LENGTH = 200;
     private static final int MAX_TITLE_LENGTH = 200;
     private static final int MAX_DESCRIPTION_LENGTH = 5000;
+    private static final byte[] PDF_MAGIC = "%PDF-".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] PNG_MAGIC = new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+    private static final byte[] JPEG_MAGIC = new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+    private static final byte[] ZIP_MAGIC = new byte[] {0x50, 0x4B, 0x03, 0x04};
     private static final Set<String> SORT_FIELDS = Set.of(
             "createdAt", "updatedAt", "title", "originalFileName", "sizeBytes");
     private static final Map<String, String> EXTENSION_TYPES = Map.of(
@@ -61,16 +72,19 @@ public class DocumentService {
     private final DocumentStorage documentStorage;
     private final DocumentStorageProperties storageProperties;
     private final OrganizationAccessService accessService;
+    private final DocumentProcessor documentProcessor;
 
     public DocumentService(
             DocumentRepository documentRepository,
             DocumentStorage documentStorage,
             DocumentStorageProperties storageProperties,
-            OrganizationAccessService accessService) {
+            OrganizationAccessService accessService,
+            DocumentProcessor documentProcessor) {
         this.documentRepository = documentRepository;
         this.documentStorage = documentStorage;
         this.storageProperties = storageProperties;
         this.accessService = accessService;
+        this.documentProcessor = documentProcessor;
     }
 
     @Transactional
@@ -90,9 +104,11 @@ public class DocumentService {
         if (bytes.length > storageProperties.getMaxBytes()) {
             throw new BadRequestException("File must be 10 MB or smaller");
         }
+        assertContentMatches(contentType, bytes);
 
         UUID documentId = UUID.randomUUID();
-        documentStorage.write(organizationId, documentId, bytes);
+        String storageKey = DocumentStorage.storageKey(organizationId, documentId);
+        documentStorage.write(storageKey, bytes);
         Document document = new Document();
         document.setId(documentId);
         document.setOrganization(membership.getOrganization());
@@ -102,11 +118,19 @@ public class DocumentService {
         document.setOriginalFileName(fileName);
         document.setContentType(contentType);
         document.setSizeBytes(bytes.length);
-        document.setExtractedText(extractText(contentType, bytes));
+        document.setStorageKey(storageKey);
+        document.setProcessingStatus(ProcessingStatus.PENDING);
         try {
-            return DocumentResponse.fromEntity(documentRepository.save(document));
+            Document saved = documentRepository.save(document);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    documentProcessor.enqueue(organizationId, documentId);
+                }
+            });
+            return DocumentResponse.fromEntity(saved);
         } catch (RuntimeException exception) {
-            documentStorage.delete(organizationId, documentId);
+            documentStorage.delete(storageKey);
             throw exception;
         }
     }
@@ -159,7 +183,7 @@ public class DocumentService {
     public ResponseEntity<Resource> download(UUID organizationId, UUID documentId) {
         accessService.requirePermission(organizationId, Permission.RESOURCE_READ);
         Document document = requireDocument(organizationId, documentId);
-        Resource resource = documentStorage.read(organizationId, documentId);
+        Resource resource = documentStorage.read(document.getStorageKey());
         ContentDisposition disposition = ContentDisposition.attachment()
                 .filename(document.getOriginalFileName(), StandardCharsets.UTF_8)
                 .build();
@@ -183,12 +207,39 @@ public class DocumentService {
         return DocumentResponse.fromEntity(documentRepository.save(document));
     }
 
+    @Transactional(readOnly = true)
+    public DocumentStatusResponse status(UUID organizationId, UUID documentId) {
+        accessService.requirePermission(organizationId, Permission.RESOURCE_READ);
+        return DocumentStatusResponse.fromEntity(requireDocument(organizationId, documentId));
+    }
+
+    @Transactional
+    public DocumentResponse retry(UUID organizationId, UUID documentId) {
+        accessService.requirePermission(organizationId, Permission.RESOURCE_UPDATE);
+        Document document = requireDocument(organizationId, documentId);
+        if (document.getProcessingStatus() != ProcessingStatus.FAILED) {
+            throw new BadRequestException("Only a failed document can be retried");
+        }
+        document.setProcessingStatus(ProcessingStatus.PENDING);
+        document.setProcessingError(null);
+        document.setExtractedText(null);
+        Document saved = documentRepository.save(document);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                documentProcessor.enqueue(organizationId, documentId);
+            }
+        });
+        return DocumentResponse.fromEntity(saved);
+    }
+
     @Transactional
     public void delete(UUID organizationId, UUID documentId) {
         accessService.requirePermission(organizationId, Permission.RESOURCE_DELETE);
         Document document = requireDocument(organizationId, documentId);
+        String storageKey = document.getStorageKey();
         documentRepository.delete(document);
-        documentStorage.delete(organizationId, documentId);
+        documentStorage.delete(storageKey);
     }
 
     private Document requireDocument(UUID organizationId, UUID documentId) {
@@ -231,13 +282,59 @@ public class DocumentService {
             name = name.substring(slash + 1);
         }
         name = name.replace("\r", "").replace("\n", "").replace("\"", "");
-        if (name.isBlank()) {
+        if (name.isBlank() || name.contains("..")) {
             throw new BadRequestException("The file needs a name");
+        }
+        for (int index = 0; index < name.length(); index++) {
+            if (name.charAt(index) < 32) {
+                throw new BadRequestException("The file needs a name");
+            }
         }
         if (name.length() > 255) {
             name = name.substring(name.length() - 255);
         }
         return name;
+    }
+
+    private static void assertContentMatches(String contentType, byte[] bytes) {
+        boolean matches = switch (contentType) {
+            case "application/pdf" -> startsWith(bytes, PDF_MAGIC);
+            case "image/png" -> startsWith(bytes, PNG_MAGIC);
+            case "image/jpeg" -> startsWith(bytes, JPEG_MAGIC);
+            case "image/webp" -> isWebp(bytes);
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> startsWith(bytes, ZIP_MAGIC);
+            default -> TEXT_TYPES.contains(contentType) && isPlainText(bytes);
+        };
+        if (!matches) {
+            throw new BadRequestException("This file does not match its extension");
+        }
+    }
+
+    private static boolean isPlainText(byte[] bytes) {
+        if (startsWith(bytes, PDF_MAGIC) || startsWith(bytes, PNG_MAGIC) || startsWith(bytes, JPEG_MAGIC)
+                || startsWith(bytes, ZIP_MAGIC) || isWebp(bytes)) {
+            return false;
+        }
+        try {
+            String text = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+            return text.indexOf('\0') < 0;
+        } catch (CharacterCodingException exception) {
+            return false;
+        }
+    }
+
+    private static boolean isWebp(byte[] bytes) {
+        return bytes.length >= 12
+                && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
+    }
+
+    private static boolean startsWith(byte[] bytes, byte[] prefix) {
+        return bytes.length >= prefix.length && Arrays.equals(bytes, 0, prefix.length, prefix, 0, prefix.length);
     }
 
     private static String contentTypeFor(String fileName) {
@@ -259,20 +356,5 @@ public class DocumentService {
         } catch (IOException exception) {
             throw new UncheckedIOException("The file could not be read", exception);
         }
-    }
-
-    private static String extractText(String contentType, byte[] bytes) {
-        if (!TEXT_TYPES.contains(contentType)) {
-            return null;
-        }
-        String text = new String(bytes, StandardCharsets.UTF_8).replace("\u0000", "");
-        String trimmed = text.trim();
-        if (trimmed.isEmpty()) {
-            return null;
-        }
-        if (trimmed.length() > MAX_EXTRACTED_CHARS) {
-            return trimmed.substring(0, MAX_EXTRACTED_CHARS);
-        }
-        return trimmed;
     }
 }

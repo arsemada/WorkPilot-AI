@@ -2,6 +2,7 @@ package com.workpilot.ai.web;
 
 import com.workpilot.ai.dto.DocumentPageResponse;
 import com.workpilot.ai.dto.DocumentResponse;
+import com.workpilot.ai.dto.DocumentStatusResponse;
 import com.workpilot.ai.dto.UpdateDocumentRequest;
 import com.workpilot.ai.service.DocumentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,6 +62,18 @@ public class DocumentController {
     @Operation(summary = "Get document metadata")
     public DocumentResponse get(@PathVariable UUID organizationId, @PathVariable UUID documentId) {
         return documentService.get(organizationId, documentId);
+    }
+
+    @GetMapping("/{documentId}/status")
+    @Operation(summary = "Read document processing status")
+    public DocumentStatusResponse status(@PathVariable UUID organizationId, @PathVariable UUID documentId) {
+        return documentService.status(organizationId, documentId);
+    }
+
+    @PostMapping("/{documentId}/retry")
+    @Operation(summary = "Retry text extraction for a failed document")
+    public DocumentResponse retry(@PathVariable UUID organizationId, @PathVariable UUID documentId) {
+        return documentService.retry(organizationId, documentId);
     }
 
     @GetMapping("/{documentId}/content")

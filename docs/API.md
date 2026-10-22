@@ -1,6 +1,6 @@
 # WorkPilot AI API
 
-Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Documents can be uploaded, searched, downloaded, and deleted inside an organization. The dashboard summarizes tasks and recorded activity for one organization. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
+Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Documents can be uploaded, searched, downloaded, and deleted inside an organization. The dashboard summarizes tasks and recorded activity for one organization. Members can keep private assistant conversations. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
 
 The API base URL for local development is `http://localhost:8081`.
 
@@ -168,12 +168,14 @@ Documents are organization resources. A caller who is not a member receives `404
 | --- | --- | --- | --- |
 | `POST` | `/api/organizations/{organizationId}/documents` | `RESOURCE_CREATE` | Upload a file as `multipart/form-data` with `file`, `title`, and optional `description` |
 | `GET` | `/api/organizations/{organizationId}/documents` | `RESOURCE_READ` | List documents with search, sorting, and pagination |
-| `GET` | `/api/organizations/{organizationId}/documents/{documentId}` | `RESOURCE_READ` | Read document metadata, including a short text preview when text was indexed |
+| `GET` | `/api/organizations/{organizationId}/documents/{documentId}` | `RESOURCE_READ` | Read document metadata, including processing status and a short text preview when text was indexed |
+| `GET` | `/api/organizations/{organizationId}/documents/{documentId}/status` | `RESOURCE_READ` | Read processing status, a safe error message, and whether text was indexed |
+| `POST` | `/api/organizations/{organizationId}/documents/{documentId}/retry` | `RESOURCE_UPDATE` | Queue text extraction again. Only a `FAILED` document can be retried |
 | `GET` | `/api/organizations/{organizationId}/documents/{documentId}/content` | `RESOURCE_READ` | Download the stored file |
 | `PATCH` | `/api/organizations/{organizationId}/documents/{documentId}` | `RESOURCE_UPDATE` | Update `title` and `description`. Send `null` to clear the description |
 | `DELETE` | `/api/organizations/{organizationId}/documents/{documentId}` | `RESOURCE_DELETE` | Delete the record and the stored file |
 
-Accepted extensions are `.pdf`, `.txt`, `.csv`, `.md`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.docx`. The maximum size is 10 MB. Text, CSV, and Markdown contents are indexed for `q`. Search also matches title, description, and file name. `page` defaults to `0`, `size` defaults to `20` with a maximum of `100`, and `sort` may be `createdAt`, `updatedAt`, `title`, `originalFileName`, or `sizeBytes`.
+Accepted extensions are `.pdf`, `.txt`, `.csv`, `.md`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.docx`. The server checks the file bytes as well as the extension. The maximum size is 10 MB. Upload stores the file and returns `processingStatus` `PENDING`. PDF, text, CSV, and Markdown extraction then moves the document to `COMPLETED` or `FAILED`. `processingError` is a short message with no file path. PNG, JPEG, WebP, and Word files finish as `COMPLETED` without extracted text. Search matches title, description, file name, and extracted text after extraction finishes. `page` defaults to `0`, `size` defaults to `20` with a maximum of `100`, and `sort` may be `createdAt`, `updatedAt`, `title`, `originalFileName`, or `sizeBytes`. Deleting a document removes the database row and the stored file.
 
 ### Dashboard
 
@@ -192,6 +194,22 @@ Trend query parameters `from` and `to` are inclusive `YYYY-MM-DD` dates. When bo
 `points` includes every day in the range, with `completedCount` of `0` when nothing was marked done. The count comes from recorded `TASK_COMPLETED` events. A task inserted without that event still increases `completedTasks` and does not add a trend point.
 
 Activity is recorded when a task is created, when its fields change, when its status changes, when it is marked done, and when it is deleted. Deleting a task keeps the activity row. The summary text describes the change, and `actorName` is the member who made it.
+
+### Assistant
+
+Conversations belong to one member inside one organization. Listing, reading, sending, and deleting use `RESOURCE_READ`, and every role has that permission. The API returns only conversations owned by the signed-in member. Another member receives `404 Conversation not found`. A caller who is not a member of the organization receives `404 Organization not found`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/api/organizations/{organizationId}/conversations` | Start a conversation. `title` is optional and defaults to `New conversation` |
+| `GET` | `/api/organizations/{organizationId}/conversations` | List the caller's conversations, newest first, up to 50 |
+| `GET` | `/api/organizations/{organizationId}/conversations/{conversationId}` | Read the conversation and its messages |
+| `POST` | `/api/organizations/{organizationId}/conversations/{conversationId}/messages` | Send `{ "content": "..." }`. Stores the user message and the assistant reply together |
+| `DELETE` | `/api/organizations/{organizationId}/conversations/{conversationId}` | Delete that member's conversation and its messages |
+
+`content` is required and must be 4,000 characters or fewer. A blank message returns `400`. The provider is OpenAI chat completions. `OPENAI_API_KEY` is required at request time. The model defaults to `gpt-4o-mini`, the timeout defaults to 30 seconds, and each reply asks for at most 800 output tokens. The request includes a short system instruction and up to 20 earlier messages from that conversation.
+
+Each member can send 40 messages per organization per UTC day. The 41st message returns `429` with `You have reached today's assistant message limit.` A missing key, a provider error, or a timeout returns `503`. Those failures are not saved as assistant messages, so the same text can be sent again. The assistant does not search documents or change organization data.
 
 ### Health
 
@@ -224,7 +242,9 @@ Error bodies use one shape:
 | `400` | Validation, malformed JSON, or a role change that would remove the last owner |
 | `401` | Missing session, or email and password did not match |
 | `403` | Missing CSRF token, or the member lacks permission |
-| `404` | The organization or member is outside the caller's access |
+| `404` | The organization, member, document, or conversation is outside the caller's access |
 | `409` | The email or organization slug is already in use |
+| `429` | The caller reached the daily assistant message limit |
+| `503` | The assistant is not configured or the provider did not return a reply |
 
 Failed login always returns `Invalid email or password`, whether the account is missing, inactive, or the password is wrong.

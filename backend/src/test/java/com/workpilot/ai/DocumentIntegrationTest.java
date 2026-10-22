@@ -2,8 +2,15 @@ package com.workpilot.ai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.workpilot.ai.exception.ResourceNotFoundException;
 import com.workpilot.ai.repository.DocumentRepository;
+import com.workpilot.ai.service.DocumentStorage;
 import jakarta.servlet.http.Cookie;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,13 +23,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -33,6 +44,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class DocumentIntegrationTest {
 
     private static final String PASSWORD = "s3cure-Phrase-9";
+    private static final byte[] TINY_PNG = Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,6 +55,9 @@ class DocumentIntegrationTest {
 
     @Autowired
     private DocumentRepository documentRepository;
+
+    @Autowired
+    private DocumentStorage documentStorage;
 
     private String csrfToken;
     private Cookie csrfCookie;
@@ -89,8 +105,13 @@ class DocumentIntegrationTest {
         assertEquals("notes.txt", document.get("originalFileName").asText());
         assertEquals("text/plain", document.get("contentType").asText());
         assertEquals(contents.length, document.get("sizeBytes").asLong());
-        assertTrue(document.get("textIndexed").asBoolean());
-        assertTrue(document.get("textPreview").asText().contains("unique-needle"));
+        assertEquals("PENDING", document.get("processingStatus").asText());
+        JsonNode ready = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/documents/" + documentId).getResponse().getContentAsString());
+        assertEquals("COMPLETED", ready.get("processingStatus").asText());
+        assertTrue(ready.get("textIndexed").asBoolean());
+        assertTrue(ready.get("textPreview").asText().contains("unique-needle"));
+        assertEquals(organizationId + "/" + documentId, ready.get("storageKey").asText());
         assertEquals("Ada Owner", document.get("uploadedByName").asText());
         assertTrue(documentRepository.findById(documentId).isPresent());
 
@@ -99,9 +120,12 @@ class DocumentIntegrationTest {
         assertEquals(new String(contents, StandardCharsets.UTF_8), downloaded.getResponse().getContentAsString());
         assertTrue(downloaded.getResponse().getHeader("Content-Disposition").contains("notes.txt"));
 
-        MvcResult second = upload(organizationId, "Diagram", null, "sketch.png", "image/png", "png-bytes");
+        MvcResult second = uploadBytes(organizationId, "Diagram", "sketch.png", "image/png", TINY_PNG);
         assertEquals(201, second.getResponse().getStatus(), second.getResponse().getContentAsString());
-        JsonNode image = objectMapper.readTree(second.getResponse().getContentAsString());
+        UUID imageId = UUID.fromString(objectMapper.readTree(second.getResponse().getContentAsString()).get("id").asText());
+        JsonNode image = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/documents/" + imageId).getResponse().getContentAsString());
+        assertEquals("COMPLETED", image.get("processingStatus").asText());
         assertFalse(image.get("textIndexed").asBoolean());
 
         MvcResult found = getWithSession("/api/organizations/" + organizationId + "/documents?q=UNIQUE-NEEDLE&page=0&size=10");
@@ -139,7 +163,77 @@ class DocumentIntegrationTest {
         MvcResult removed = delete("/api/organizations/" + organizationId + "/documents/" + documentId);
         assertEquals(204, removed.getResponse().getStatus());
         assertFalse(documentRepository.findById(documentId).isPresent());
+        assertThrows(ResourceNotFoundException.class, () -> documentStorage.read(organizationId + "/" + documentId));
         assertEquals(404, getWithSession("/api/organizations/" + organizationId + "/documents/" + documentId + "/content").getResponse().getStatus());
+    }
+
+    @Test
+    void rejectsUnsafeFilesAndRetriesFailedExtraction() throws Exception {
+        String ownerEmail = email();
+        UUID organizationId = organizationId(register(ownerEmail, "Ada", "Owner", "Processing Org"));
+        login(ownerEmail);
+
+        MvcResult disguised = uploadBytes(organizationId, "Disguised", "notes.txt", "text/plain", TINY_PNG);
+        assertEquals(400, disguised.getResponse().getStatus());
+        assertTrue(disguised.getResponse().getContentAsString().contains("does not match"));
+
+        MvcResult fakePdf = upload(organizationId, "Fake", null, "notes.pdf", "application/pdf", "hello");
+        assertEquals(400, fakePdf.getResponse().getStatus());
+        assertTrue(fakePdf.getResponse().getContentAsString().contains("does not match"));
+
+        MvcResult tooBig = uploadBytes(organizationId, "Huge", "huge.txt", "text/plain", new byte[10 * 1024 * 1024 + 1]);
+        assertEquals(400, tooBig.getResponse().getStatus());
+        assertTrue(tooBig.getResponse().getContentAsString().contains("10 MB"));
+
+        MvcResult broken = upload(organizationId, "Broken", null, "broken.pdf", "application/pdf", "%PDF-1.4\nnot a real pdf");
+        assertEquals(201, broken.getResponse().getStatus(), broken.getResponse().getContentAsString());
+        UUID brokenId = UUID.fromString(objectMapper.readTree(broken.getResponse().getContentAsString()).get("id").asText());
+        JsonNode failed = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/documents/" + brokenId + "/status").getResponse().getContentAsString());
+        assertEquals("FAILED", failed.get("processingStatus").asText());
+        assertEquals("Text extraction failed", failed.get("processingError").asText());
+        assertFalse(failed.get("textIndexed").asBoolean());
+
+        MvcResult retried = submit("/api/organizations/" + organizationId + "/documents/" + brokenId + "/retry", Map.of());
+        assertEquals(200, retried.getResponse().getStatus(), retried.getResponse().getContentAsString());
+        assertEquals("PENDING", objectMapper.readTree(retried.getResponse().getContentAsString()).get("processingStatus").asText());
+        JsonNode failedAgain = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/documents/" + brokenId + "/status").getResponse().getContentAsString());
+        assertEquals("FAILED", failedAgain.get("processingStatus").asText());
+
+        byte[] pdf = pdfWithText("pdf-needle");
+        MvcResult guide = uploadBytes(organizationId, "Guide", "guide.pdf", "application/pdf", pdf);
+        assertEquals(201, guide.getResponse().getStatus(), guide.getResponse().getContentAsString());
+        UUID guideId = UUID.fromString(objectMapper.readTree(guide.getResponse().getContentAsString()).get("id").asText());
+        JsonNode extracted = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/documents/" + guideId).getResponse().getContentAsString());
+        assertEquals("COMPLETED", extracted.get("processingStatus").asText());
+        assertTrue(extracted.get("textPreview").asText().contains("pdf-needle"));
+        MvcResult retryCompleted = submit("/api/organizations/" + organizationId + "/documents/" + guideId + "/retry", Map.of());
+        assertEquals(400, retryCompleted.getResponse().getStatus());
+        assertTrue(retryCompleted.getResponse().getContentAsString().contains("Only a failed document"));
+
+        String outsiderEmail = email();
+        UUID outsiderOrgId = organizationId(register(outsiderEmail, "Otto", "Outsider", "Other Processing Org"));
+        login(outsiderEmail);
+        assertEquals(404, getWithSession("/api/organizations/" + organizationId + "/documents/" + guideId + "/status").getResponse().getStatus());
+        assertEquals(404, getWithSession("/api/organizations/" + outsiderOrgId + "/documents/" + guideId).getResponse().getStatus());
+    }
+
+    private static byte[] pdfWithText(String text) throws IOException {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+            try (PDPageContentStream stream = new PDPageContentStream(document, page)) {
+                stream.beginText();
+                stream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+                stream.newLineAtOffset(50, 700);
+                stream.showText(text);
+                stream.endText();
+            }
+            document.save(output);
+            return output.toByteArray();
+        }
     }
 
     private MvcResult upload(UUID organizationId, String title, String description, String fileName, String contentType, String body) throws Exception {
@@ -151,6 +245,21 @@ class DocumentIntegrationTest {
             request.param("description", description);
         }
         request.header("X-XSRF-TOKEN", csrfToken).cookie(csrfCookie);
+        if (session != null) {
+            request.session(session);
+        }
+        MvcResult result = mockMvc.perform(request).andReturn();
+        updateCookies(result);
+        return result;
+    }
+
+    private MvcResult uploadBytes(UUID organizationId, String title, String fileName, String contentType, byte[] body) throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", fileName, contentType, body);
+        MockHttpServletRequestBuilder request = multipart("/api/organizations/" + organizationId + "/documents")
+                .file(file)
+                .param("title", title)
+                .header("X-XSRF-TOKEN", csrfToken)
+                .cookie(csrfCookie);
         if (session != null) {
             request.session(session);
         }

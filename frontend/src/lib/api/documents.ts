@@ -46,6 +46,13 @@ export function deleteDocument(organizationId: string, documentId: string) {
   });
 }
 
+export function retryDocument(organizationId: string, documentId: string) {
+  return apiRequest<OrganizationDocument>(`/api/organizations/${organizationId}/documents/${documentId}/retry`, {
+    method: "POST",
+    session: "required",
+  });
+}
+
 export async function downloadDocument(organizationId: string, item: OrganizationDocument) {
   const blob = await apiDownload(`/api/organizations/${organizationId}/documents/${item.id}/content`);
   const url = URL.createObjectURL(blob);

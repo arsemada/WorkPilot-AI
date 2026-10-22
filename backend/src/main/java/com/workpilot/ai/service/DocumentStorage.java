@@ -21,8 +21,12 @@ public class DocumentStorage {
         this.root = Path.of(properties.getDirectory()).toAbsolutePath().normalize();
     }
 
-    public void write(UUID organizationId, UUID documentId, byte[] bytes) {
-        Path path = resolve(organizationId, documentId);
+    public static String storageKey(UUID organizationId, UUID documentId) {
+        return organizationId + "/" + documentId;
+    }
+
+    public void write(String storageKey, byte[] bytes) {
+        Path path = resolve(storageKey);
         try {
             Files.createDirectories(path.getParent());
             Files.write(path, bytes);
@@ -31,16 +35,28 @@ public class DocumentStorage {
         }
     }
 
-    public Resource read(UUID organizationId, UUID documentId) {
-        Path path = resolve(organizationId, documentId);
+    public Resource read(String storageKey) {
+        Path path = resolve(storageKey);
         if (!Files.isRegularFile(path)) {
             throw new ResourceNotFoundException("Document file is missing");
         }
         return new FileSystemResource(path);
     }
 
-    public void delete(UUID organizationId, UUID documentId) {
-        Path path = resolve(organizationId, documentId);
+    public byte[] readBytes(String storageKey) {
+        Path path = resolve(storageKey);
+        if (!Files.isRegularFile(path)) {
+            throw new ResourceNotFoundException("Document file is missing");
+        }
+        try {
+            return Files.readAllBytes(path);
+        } catch (IOException exception) {
+            throw new UncheckedIOException("The stored document could not be read", exception);
+        }
+    }
+
+    public void delete(String storageKey) {
+        Path path = resolve(storageKey);
         try {
             Files.deleteIfExists(path);
         } catch (IOException exception) {
@@ -48,11 +64,21 @@ public class DocumentStorage {
         }
     }
 
-    private Path resolve(UUID organizationId, UUID documentId) {
-        Path path = root.resolve(organizationId.toString()).resolve(documentId.toString()).normalize();
+    private Path resolve(String storageKey) {
+        Path relative = Path.of(storageKey);
+        if (relative.isAbsolute()) {
+            throw new IllegalArgumentException("Document path is outside the storage directory");
+        }
+        for (Path part : relative) {
+            String name = part.toString();
+            if (name.isBlank() || ".".equals(name) || "..".equals(name)) {
+                throw new IllegalArgumentException("Document path is outside the storage directory");
+            }
+        }
+        Path path = root.resolve(relative).normalize();
         if (!path.startsWith(root)) {
             throw new IllegalArgumentException("Document path is outside the storage directory");
         }
         return path;
     }
-}
+} 

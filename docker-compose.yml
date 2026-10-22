@@ -29,6 +29,10 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       DOCUMENT_STORAGE_DIR: /var/lib/workpilot/documents
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_TIMEOUT: ${OPENAI_TIMEOUT:-30s}
     volumes:
       - workpilot_documents:/var/lib/workpilot/documents
     ports:

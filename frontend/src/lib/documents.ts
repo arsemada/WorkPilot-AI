@@ -1,3 +1,6 @@
+import type { OrganizationDocument } from "@/lib/api/types";
+import type { Tone } from "@/components/ui/status-badge";
+
 export const DOCUMENT_ACCEPT = ".pdf,.txt,.csv,.md,.png,.jpg,.jpeg,.webp,.docx";
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
@@ -32,4 +35,22 @@ export function formatUploadedAt(value: string) {
     timeStyle: "short",
     timeZone: "UTC",
   }).format(new Date(value));
+}
+
+export function processingLabel(status: OrganizationDocument["processingStatus"]) {
+  if (status === "PENDING") return "Pending";
+  if (status === "PROCESSING") return "Processing";
+  if (status === "COMPLETED") return "Ready";
+  return "Failed";
+}
+
+export function processingTone(status: OrganizationDocument["processingStatus"]): Tone {
+  if (status === "COMPLETED") return "success";
+  if (status === "FAILED") return "danger";
+  if (status === "PROCESSING") return "info";
+  return "planned";
+}
+
+export function isProcessing(status: OrganizationDocument["processingStatus"]) {
+  return status === "PENDING" || status === "PROCESSING";
 }

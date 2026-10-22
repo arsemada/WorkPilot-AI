@@ -2,6 +2,8 @@ package com.workpilot.ai.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -40,6 +42,16 @@ public class Document implements OrganizationScoped {
 
     @Column(name = "size_bytes", nullable = false)
     private long sizeBytes;
+
+    @Column(name = "storage_key", nullable = false, length = 80)
+    private String storageKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "processing_status", nullable = false, length = 20)
+    private ProcessingStatus processingStatus = ProcessingStatus.PENDING;
+
+    @Column(name = "processing_error", length = 300)
+    private String processingError;
 
     @Column(name = "extracted_text", length = 20000)
     private String extractedText;
@@ -132,6 +144,30 @@ public class Document implements OrganizationScoped {
 
     public void setSizeBytes(long sizeBytes) {
         this.sizeBytes = sizeBytes;
+    }
+
+    public String getStorageKey() {
+        return storageKey;
+    }
+
+    public void setStorageKey(String storageKey) {
+        this.storageKey = storageKey;
+    }
+
+    public ProcessingStatus getProcessingStatus() {
+        return processingStatus;
+    }
+
+    public void setProcessingStatus(ProcessingStatus processingStatus) {
+        this.processingStatus = processingStatus;
+    }
+
+    public String getProcessingError() {
+        return processingError;
+    }
+
+    public void setProcessingError(String processingError) {
+        this.processingError = processingError;
     }
 
     public String getExtractedText() {
