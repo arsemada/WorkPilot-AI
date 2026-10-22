@@ -154,3 +154,44 @@ export type TaskListQuery = {
   sort?: string;
   direction?: "asc" | "desc";
 };
+
+export type ActivityType =
+  | "TASK_CREATED"
+  | "TASK_UPDATED"
+  | "TASK_STATUS_CHANGED"
+  | "TASK_COMPLETED"
+  | "TASK_DELETED";
+
+export type DashboardSummary = {
+  organizationId: string;
+  organizationName: string;
+  memberCount: number;
+  totalTasks: number;
+  todoTasks: number;
+  inProgressTasks: number;
+  completedTasks: number;
+  cancelledTasks: number;
+  overdueTasks: number;
+  recentTasks: Task[];
+};
+
+export type DashboardTrendPoint = {
+  date: string;
+  completedCount: number;
+};
+
+export type DashboardTrend = {
+  from: string;
+  to: string;
+  points: DashboardTrendPoint[];
+};
+
+export type ActivityEvent = {
+  id: string;
+  type: ActivityType;
+  summary: string;
+  taskId: string | null;
+  actorId: string;
+  actorName: string;
+  occurredAt: string;
+};

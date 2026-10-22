@@ -1,6 +1,6 @@
 # WorkPilot AI
 
-WorkPilot AI is an AI-powered business operations platform. Accounts, organizations, cookie sessions, task management, and document storage are in place. Dashboard metrics, the AI assistant, and workflows are not implemented yet.
+WorkPilot AI is an AI-powered business operations platform. Accounts, organizations, cookie sessions, task management, document storage, and the organization dashboard are in place. The AI assistant and workflows are not implemented yet.
 
 ## Technology stack
 
@@ -126,6 +126,7 @@ Migrations:
 | `V2__membership_role_check.sql` | Restricts membership roles to `OWNER`, `ADMIN`, and `MEMBER` |
 | `V3__tasks.sql` | Organization tasks, with status and priority checks |
 | `V4__documents.sql` | Organization documents and allowed file types |
+| `V5__activity_events.sql` | Task activity used by the dashboard |
 
 ## Health checks
 
@@ -162,7 +163,7 @@ Public routes are `/login` and `/register`. `/` sends a signed-in user to `/dash
 
 | Route | Page |
 | --- | --- |
-| `/dashboard` | Placeholder for later metrics, plus the organizations on the current session |
+| `/dashboard` | Task counts, completion trend, recent tasks, and recent activity |
 | `/tasks` | Task list, filters, create, edit, status changes, and delete |
 | `/documents` | Upload, search, download, edit, and delete organization files |
 | `/assistant` | Placeholder |
@@ -193,6 +194,14 @@ Documents belong to one organization. Upload, read, and metadata updates use the
 Accepted files are PDF, plain text, CSV, Markdown, PNG, JPEG, WebP, and Word `.docx`, up to 10 MB. Text, CSV, and Markdown files are indexed so search can match their contents. Other accepted types are stored for download. A host backend keeps files under `data/documents`. Compose stores them in the `workpilot_documents` volume.
 
 The Documents page uploads, searches, pages, downloads, and deletes files through `/api/organizations/{organizationId}/documents`.
+
+## Dashboard
+
+The dashboard reads one organization at a time. Counts for total, to do, in progress, completed, cancelled, and overdue tasks come from database aggregates. A task is overdue when its due date is before today's UTC date and its status is `TODO` or `IN_PROGRESS`.
+
+Completion trends count tasks marked done on each UTC day. Creating a task as `DONE`, or moving a task to `DONE`, records that day. Reopening the task leaves the original day in the trend. Tasks that were already done before activity recording started stay in the completed count and do not receive a made-up trend day.
+
+Recent activity lists the latest task create, update, status change, completion, and delete events for that organization. The contract is in [docs/API.md](docs/API.md).
 
 Frontend checks from `frontend/`:
 

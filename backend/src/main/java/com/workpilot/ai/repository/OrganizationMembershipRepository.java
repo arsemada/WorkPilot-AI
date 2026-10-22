@@ -28,4 +28,7 @@ public interface OrganizationMembershipRepository extends JpaRepository<Organiza
     boolean existsByOrganizationIdAndUserId(UUID organizationId, UUID userId);
 
     long countByOrganizationIdAndRole(UUID organizationId, OrganizationRole role);
+
+    @Query("SELECT COUNT(m) FROM OrganizationMembership m WHERE m.organization.id = :organizationId")
+    long countMembers(@Param("organizationId") UUID organizationId);
 }

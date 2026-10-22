@@ -1,6 +1,6 @@
 # WorkPilot AI API
 
-Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Documents can be uploaded, searched, downloaded, and deleted inside an organization. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
+Phase 1 exposes account, organization, and membership operations. Phase 3 adds organization-scoped tasks. Documents can be uploaded, searched, downloaded, and deleted inside an organization. The dashboard summarizes tasks and recorded activity for one organization. Interactive documentation is served at `http://localhost:8081/swagger-ui.html` and `http://localhost:8081/v3/api-docs`.
 
 The API base URL for local development is `http://localhost:8081`.
 
@@ -174,6 +174,24 @@ Documents are organization resources. A caller who is not a member receives `404
 | `DELETE` | `/api/organizations/{organizationId}/documents/{documentId}` | `RESOURCE_DELETE` | Delete the record and the stored file |
 
 Accepted extensions are `.pdf`, `.txt`, `.csv`, `.md`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.docx`. The maximum size is 10 MB. Text, CSV, and Markdown contents are indexed for `q`. Search also matches title, description, and file name. `page` defaults to `0`, `size` defaults to `20` with a maximum of `100`, and `sort` may be `createdAt`, `updatedAt`, `title`, `originalFileName`, or `sizeBytes`.
+
+### Dashboard
+
+Dashboard reads use `RESOURCE_READ`. A caller who is not a member receives `404`. Counts are calculated in the database for the organization in the path.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/organizations/{organizationId}/dashboard` | Current task counts, member count, and the five most recently updated tasks |
+| `GET` | `/api/organizations/{organizationId}/dashboard/trends` | Tasks marked done on each UTC day |
+| `GET` | `/api/organizations/{organizationId}/dashboard/activity` | The ten most recent task activity events |
+
+Trend query parameters `from` and `to` are inclusive `YYYY-MM-DD` dates. When both are omitted, the range is the last 14 UTC days including today. Sending only one date returns `400`. A range longer than 90 days returns `400`.
+
+`overdueTasks` counts tasks whose due date is before today's UTC date and whose status is `TODO` or `IN_PROGRESS`. A task due today is not overdue. Done and cancelled tasks are not overdue.
+
+`points` includes every day in the range, with `completedCount` of `0` when nothing was marked done. The count comes from recorded `TASK_COMPLETED` events. A task inserted without that event still increases `completedTasks` and does not add a trend point.
+
+Activity is recorded when a task is created, when its fields change, when its status changes, when it is marked done, and when it is deleted. Deleting a task keeps the activity row. The summary text describes the change, and `actorName` is the member who made it.
 
 ### Health
 

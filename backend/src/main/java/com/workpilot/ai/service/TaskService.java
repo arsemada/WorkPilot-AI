@@ -1,5 +1,6 @@
 package com.workpilot.ai.service;
 
+import com.workpilot.ai.domain.ActivityType;
 import com.workpilot.ai.domain.OrganizationMembership;
 import com.workpilot.ai.domain.Permission;
 import com.workpilot.ai.domain.Task;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -48,14 +50,17 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final OrganizationMembershipRepository membershipRepository;
     private final OrganizationAccessService accessService;
+    private final ActivityRecorder activityRecorder;
 
     public TaskService(
             TaskRepository taskRepository,
             OrganizationMembershipRepository membershipRepository,
-            OrganizationAccessService accessService) {
+            OrganizationAccessService accessService,
+            ActivityRecorder activityRecorder) {
         this.taskRepository = taskRepository;
         this.membershipRepository = membershipRepository;
         this.accessService = accessService;
+        this.activityRecorder = activityRecorder;
     }
 
     @Transactional
@@ -72,7 +77,22 @@ public class TaskService {
         if (request.assigneeId() != null) {
             task.setAssignee(requireEligibleAssignee(organizationId, request.assigneeId()));
         }
-        return TaskResponse.fromEntity(taskRepository.save(task));
+        Task saved = taskRepository.save(task);
+        activityRecorder.record(
+                membership.getOrganization(),
+                membership.getUser(),
+                saved.getId(),
+                ActivityType.TASK_CREATED,
+                "created \"" + saved.getTitle() + "\"");
+        if (saved.getStatus() == TaskStatus.DONE) {
+            activityRecorder.record(
+                    membership.getOrganization(),
+                    membership.getUser(),
+                    saved.getId(),
+                    ActivityType.TASK_COMPLETED,
+                    "completed \"" + saved.getTitle() + "\"");
+        }
+        return TaskResponse.fromEntity(saved);
     }
 
     @Transactional(readOnly = true)
@@ -139,12 +159,19 @@ public class TaskService {
 
     @Transactional(readOnly = true)
     public TaskResponse get(UUID organizationId, UUID taskId) {
-        return TaskResponse.fromEntity(requireTask(organizationId, taskId, Permission.RESOURCE_READ));
+        return TaskResponse.fromEntity(requireTask(organizationId, taskId, Permission.RESOURCE_READ).task());
+    }
+
+    private record AuthorizedTask(OrganizationMembership membership, Task task) {
     }
 
     @Transactional
     public TaskResponse update(UUID organizationId, UUID taskId, UpdateTaskRequest request) {
-        Task task = requireTask(organizationId, taskId, Permission.RESOURCE_UPDATE);
+        AuthorizedTask authorized = requireTask(organizationId, taskId, Permission.RESOURCE_UPDATE);
+        Task task = authorized.task();
+        TaskStatus previousStatus = task.getStatus();
+        boolean statusChanged = false;
+        boolean fieldsChanged = false;
         if (request.isTitlePresent()) {
             if (request.getTitle() == null || request.getTitle().isBlank()) {
                 throw new BadRequestException("Title is required");
@@ -153,12 +180,18 @@ public class TaskService {
             if (title.length() > 200) {
                 throw new BadRequestException("Title must be at most 200 characters");
             }
+            if (!title.equals(task.getTitle())) {
+                fieldsChanged = true;
+            }
             task.setTitle(title);
         }
         if (request.isDescriptionPresent()) {
             String description = blankToNull(request.getDescription());
             if (description != null && description.length() > 5000) {
                 throw new BadRequestException("Description must be at most 5000 characters");
+            }
+            if (!Objects.equals(description, task.getDescription())) {
+                fieldsChanged = true;
             }
             task.setDescription(description);
         }
@@ -170,37 +203,81 @@ public class TaskService {
                 throw new BadRequestException(
                         "Cannot change status from " + task.getStatus() + " to " + request.getStatus());
             }
+            statusChanged = request.getStatus() != previousStatus;
             task.setStatus(request.getStatus());
         }
         if (request.isPriorityPresent()) {
             if (request.getPriority() == null) {
                 throw new BadRequestException("Priority is required");
             }
+            if (request.getPriority() != task.getPriority()) {
+                fieldsChanged = true;
+            }
             task.setPriority(request.getPriority());
         }
         if (request.isDueDatePresent()) {
+            if (!Objects.equals(request.getDueDate(), task.getDueDate())) {
+                fieldsChanged = true;
+            }
             task.setDueDate(request.getDueDate());
         }
         if (request.isAssigneePresent()) {
+            UUID previousAssigneeId = task.getAssignee() == null ? null : task.getAssignee().getId();
+            if (!Objects.equals(request.getAssigneeId(), previousAssigneeId)) {
+                fieldsChanged = true;
+            }
             if (request.getAssigneeId() == null) {
                 task.setAssignee(null);
             } else {
                 task.setAssignee(requireEligibleAssignee(organizationId, request.getAssigneeId()));
             }
         }
-        return TaskResponse.fromEntity(taskRepository.save(task));
+        Task saved = taskRepository.save(task);
+        if (statusChanged && saved.getStatus() == TaskStatus.DONE) {
+            activityRecorder.record(
+                    authorized.membership().getOrganization(),
+                    authorized.membership().getUser(),
+                    saved.getId(),
+                    ActivityType.TASK_COMPLETED,
+                    "completed \"" + saved.getTitle() + "\"");
+        } else if (statusChanged) {
+            activityRecorder.record(
+                    authorized.membership().getOrganization(),
+                    authorized.membership().getUser(),
+                    saved.getId(),
+                    ActivityType.TASK_STATUS_CHANGED,
+                    "changed \"" + saved.getTitle() + "\" from " + previousStatus + " to " + saved.getStatus());
+        } else if (fieldsChanged) {
+            activityRecorder.record(
+                    authorized.membership().getOrganization(),
+                    authorized.membership().getUser(),
+                    saved.getId(),
+                    ActivityType.TASK_UPDATED,
+                    "updated \"" + saved.getTitle() + "\"");
+        }
+        return TaskResponse.fromEntity(saved);
     }
 
     @Transactional
     public void delete(UUID organizationId, UUID taskId) {
-        Task task = requireTask(organizationId, taskId, Permission.RESOURCE_DELETE);
+        AuthorizedTask authorized = requireTask(organizationId, taskId, Permission.RESOURCE_DELETE);
+        Task task = authorized.task();
+        String title = task.getTitle();
+        UUID id = task.getId();
         taskRepository.delete(task);
+        activityRecorder.record(
+                authorized.membership().getOrganization(),
+                authorized.membership().getUser(),
+                id,
+                ActivityType.TASK_DELETED,
+                "deleted \"" + title + "\"");
     }
 
-    private Task requireTask(UUID organizationId, UUID taskId, Permission permission) {
-        accessService.requirePermission(organizationId, permission);
-        return taskRepository.findByIdAndOrganizationId(taskId, organizationId)
+    private AuthorizedTask requireTask(UUID organizationId, UUID taskId, Permission permission) {
+        OrganizationMembership membership = accessService.requirePermission(organizationId, permission);
+        Task task = taskRepository.findByIdAndOrganizationId(taskId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        return new AuthorizedTask(membership, task);
     }
 
     private User requireEligibleAssignee(UUID organizationId, UUID assigneeId) {
