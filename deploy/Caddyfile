@@ -1,0 +1,12 @@
+# Example only. Replace the hostnames, then run Caddy on the same Docker
+# network as the frontend and backend. This file is not started by Compose.
+# Ports 80 and 443 are the public entry points. The application containers
+# stay unpublished when docker-compose.prod.yml is applied.
+
+app.example.com {
+	reverse_proxy frontend:3000
+}
+
+api.example.com {
+	reverse_proxy backend:8081
+}
