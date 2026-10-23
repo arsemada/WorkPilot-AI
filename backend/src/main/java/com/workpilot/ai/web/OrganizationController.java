@@ -5,6 +5,7 @@ import com.workpilot.ai.dto.CreateOrganizationRequest;
 import com.workpilot.ai.dto.MembershipResponse;
 import com.workpilot.ai.dto.OrganizationResponse;
 import com.workpilot.ai.dto.UpdateMemberRoleRequest;
+import com.workpilot.ai.dto.UpdateOrganizationRequest;
 import com.workpilot.ai.service.OrganizationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -53,6 +54,14 @@ public class OrganizationController {
         return organizationService.get(organizationId);
     }
 
+    @PatchMapping("/{organizationId}")
+    @Operation(summary = "Rename an organization")
+    public OrganizationResponse update(
+            @PathVariable UUID organizationId,
+            @Valid @RequestBody UpdateOrganizationRequest request) {
+        return organizationService.update(organizationId, request);
+    }
+
     @GetMapping("/{organizationId}/members")
     @Operation(summary = "List members of an organization")
     public List<MembershipResponse> members(@PathVariable UUID organizationId) {
@@ -84,3 +93,4 @@ public class OrganizationController {
         organizationService.removeMember(organizationId, userId);
     }
 }
+

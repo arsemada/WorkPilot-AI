@@ -266,6 +266,40 @@ class AuthOrganizationIntegrationTest {
                 Permission.RESOURCE_READ));
     }
 
+    @Test
+    void profileAndOrganizationNameCanBeUpdated() throws Exception {
+        String ownerEmail = email();
+        String memberEmail = email();
+        assertEquals(201, submit("/api/auth/register", account(ownerEmail, "Ada", "Lovelace", "Engines")).getResponse().getStatus());
+        assertEquals(201, submit("/api/auth/register", account(memberEmail, "Mia", "Member", null)).getResponse().getStatus());
+        login(ownerEmail);
+
+        MvcResult me = getWithSession("/api/auth/me");
+        UUID organizationId = UUID.fromString(objectMapper.readTree(me.getResponse().getContentAsString())
+                .get("memberships").get(0).get("organizationId").asText());
+        String slug = objectMapper.readTree(me.getResponse().getContentAsString())
+                .get("memberships").get(0).get("organizationSlug").asText();
+
+        MvcResult renamedUser = patch("/api/auth/me", Map.of("firstName", "Augusta", "lastName", "King"));
+        assertEquals(200, renamedUser.getResponse().getStatus());
+        assertEquals("Augusta King", objectMapper.readTree(renamedUser.getResponse().getContentAsString()).get("fullName").asText());
+
+        MvcResult blankName = patch("/api/auth/me", Map.of("firstName", " ", "lastName", "King"));
+        assertEquals(400, blankName.getResponse().getStatus());
+
+        MvcResult renamedOrg = patch("/api/organizations/" + organizationId, Map.of("name", "Analytical Engines"));
+        assertEquals(200, renamedOrg.getResponse().getStatus());
+        JsonNode organization = objectMapper.readTree(renamedOrg.getResponse().getContentAsString());
+        assertEquals("Analytical Engines", organization.get("name").asText());
+        assertEquals(slug, organization.get("slug").asText());
+
+        assertEquals(201, submit("/api/organizations/" + organizationId + "/members",
+                Map.of("email", memberEmail, "role", "MEMBER")).getResponse().getStatus());
+        login(memberEmail);
+        MvcResult denied = patch("/api/organizations/" + organizationId, Map.of("name", "Taken"));
+        assertEquals(403, denied.getResponse().getStatus());
+    }
+
     private UUID ownerId(String email) {
         return userRepository.findByEmailIgnoreCase(email).orElseThrow().getId();
     }

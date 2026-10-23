@@ -10,6 +10,7 @@ import com.workpilot.ai.dto.CreateOrganizationRequest;
 import com.workpilot.ai.dto.MembershipResponse;
 import com.workpilot.ai.dto.OrganizationResponse;
 import com.workpilot.ai.dto.UpdateMemberRoleRequest;
+import com.workpilot.ai.dto.UpdateOrganizationRequest;
 import com.workpilot.ai.exception.BadRequestException;
 import com.workpilot.ai.exception.ConflictException;
 import com.workpilot.ai.exception.ForbiddenException;
@@ -78,6 +79,13 @@ public class OrganizationService {
                 .map(membership -> OrganizationResponse.fromEntity(membership.getOrganization()))
                 .sorted(Comparator.comparing(OrganizationResponse::name))
                 .toList();
+    }
+
+    @Transactional
+    public OrganizationResponse update(UUID organizationId, UpdateOrganizationRequest request) {
+        OrganizationMembership membership = organizationAccessService.requirePermission(organizationId, Permission.ORG_UPDATE);
+        membership.getOrganization().setName(request.name().trim());
+        return OrganizationResponse.fromEntity(membership.getOrganization());
     }
 
     @Transactional(readOnly = true)

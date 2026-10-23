@@ -4,6 +4,7 @@ import com.workpilot.ai.domain.User;
 import com.workpilot.ai.dto.LoginRequest;
 import com.workpilot.ai.dto.MembershipResponse;
 import com.workpilot.ai.dto.RegisterRequest;
+import com.workpilot.ai.dto.UpdateProfileRequest;
 import com.workpilot.ai.dto.UserProfileResponse;
 import com.workpilot.ai.exception.BadRequestException;
 import com.workpilot.ai.exception.ConflictException;
@@ -11,6 +12,7 @@ import com.workpilot.ai.exception.UnauthorizedException;
 import com.workpilot.ai.repository.OrganizationMembershipRepository;
 import com.workpilot.ai.repository.UserRepository;
 import com.workpilot.ai.security.CustomUserDetails;
+import com.workpilot.ai.security.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -114,6 +116,15 @@ public class AuthService {
     public void logout(HttpServletRequest request, HttpServletResponse response) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         new SecurityContextLogoutHandler().logout(request, response, authentication);
+    }
+
+    @Transactional
+    public UserProfileResponse updateProfile(UpdateProfileRequest request) {
+        User user = userRepository.findById(SecurityUtils.currentUserId())
+                .orElseThrow(() -> new UnauthorizedException("Authentication required"));
+        user.setFirstName(request.firstName().trim());
+        user.setLastName(request.lastName().trim());
+        return profile(user);
     }
 
     @Transactional(readOnly = true)

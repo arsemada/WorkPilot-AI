@@ -12,7 +12,7 @@ import {
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { ApiError, setUnauthorizedHandler } from "@/lib/api/client";
-import { fetchCurrentUser, login, logout, registerAccount } from "@/lib/api/auth";
+import { fetchCurrentUser, login, logout, registerAccount, updateProfile } from "@/lib/api/auth";
 import type { LoginRequest, RegisterRequest, UserProfile } from "@/lib/api/types";
 import { markSessionExpired } from "@/lib/return-path";
 import { useToast } from "@/components/ui/toast";
@@ -26,6 +26,8 @@ type AuthContextValue = {
   signIn: (input: LoginRequest) => Promise<void>;
   signUp: (input: RegisterRequest) => Promise<void>;
   signOut: () => Promise<void>;
+  saveProfile: (firstName: string, lastName: string) => Promise<UserProfile>;
+  refreshProfile: () => Promise<UserProfile>;
   retry: () => void;
 };
 
@@ -156,6 +158,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [signIn],
   );
 
+  const refreshProfile = useCallback(async () => {
+    const profile = await fetchCurrentUser("required");
+    setUser(profile);
+    return profile;
+  }, []);
+
+  const saveProfile = useCallback(async (firstName: string, lastName: string) => {
+    const profile = await updateProfile(firstName, lastName);
+    setUser(profile);
+    return profile;
+  }, []);
+
   const signOut = useCallback(async () => {
     sessionRequest.current += 1;
     try {
@@ -177,8 +191,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, status, errorMessage, signIn, signUp, signOut, retry }),
-    [user, status, errorMessage, signIn, signUp, signOut, retry],
+    () => ({ user, status, errorMessage, signIn, signUp, signOut, saveProfile, refreshProfile, retry }),
+    [user, status, errorMessage, signIn, signUp, signOut, saveProfile, refreshProfile, retry],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

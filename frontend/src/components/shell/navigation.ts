@@ -10,7 +10,7 @@ export const navigation: NavItem[] = [
   { href: "/documents", label: "Documents", description: "Organization document library" },
   { href: "/assistant", label: "AI Assistant", description: "Conversations with the assistant" },
   { href: "/workflows", label: "Workflows", description: "Workflow rules, history, and notifications" },
-  { href: "/settings", label: "Settings", description: "Settings placeholder" },
+  { href: "/settings", label: "Settings", description: "Account, organization, and members" },
 ];
 
 export function titleForPath(pathname: string) {

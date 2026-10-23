@@ -5,6 +5,14 @@ export function fetchCurrentUser(session: "required" | "optional" = "optional") 
   return apiRequest<UserProfile>("/api/auth/me", { session });
 }
 
+export function updateProfile(firstName: string, lastName: string) {
+  return apiRequest<UserProfile>("/api/auth/me", {
+    method: "PATCH",
+    body: { firstName, lastName },
+    session: "required",
+  });
+}
+
 export function login(body: LoginRequest) {
   return apiRequest<UserProfile>("/api/auth/login", {
     method: "POST",

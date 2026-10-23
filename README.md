@@ -331,7 +331,7 @@ Document files live in the `workpilot_documents` volume, or in `DOCUMENT_STORAGE
 - Document indexing and the optional document summary need `OPENAI_API_KEY`. The screenshots show indexing failed for that reason.
 - The document summary workflow is disabled until an owner or admin enables it.
 - Overdue and daily activity jobs run at 08:00 and 08:15 UTC.
-- Settings is a placeholder page.
+- Email addresses cannot be changed from Settings.
 - Backend tests cover H2 plus one pgvector test. The frontend has lint, type checking, and a production build, and no browser test runner.
 - `npm audit` reports high findings in the ESLint toolchain. The suggested fix downgrades `eslint-config-next` and was not applied. Java dependencies were not scanned with an NVD tool.
 - This is a single-machine layout. It does not add a second API instance, a shared session store, or a managed database.
@@ -357,7 +357,7 @@ Public routes are `/login` and `/register`. `/` sends a signed-in user to `/dash
 | `/documents` | Upload, search, download, edit, and delete organization files |
 | `/assistant` | Conversations with the assistant |
 | `/workflows` | Workflow rules, run history, and notifications |
-| `/settings` | Placeholder |
+| `/settings` | Account name, organization name, and members |
 
 Registration calls `POST /api/auth/register`, then `POST /api/auth/login`. The API does not start a session during registration. Sign-out calls `POST /api/auth/logout`. Reloading the page calls `GET /api/auth/me` and keeps the user in the shell while the session cookie is still valid.
 

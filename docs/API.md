@@ -51,6 +51,7 @@ Future organization-owned entities should implement `OrganizationScoped` and be 
 | `POST` | `/api/auth/login` | Public | Start a session |
 | `POST` | `/api/auth/logout` | Session | Invalidate the session |
 | `GET` | `/api/auth/me` | Session | Current user and memberships |
+| `PATCH` | `/api/auth/me` | Session | Update the current user's first and last name |
 
 Registration body:
 
@@ -80,6 +81,7 @@ Login body:
 | `POST` | `/api/organizations` | Authenticated | Create an organization and become its owner |
 | `GET` | `/api/organizations` | Authenticated | List organizations for the current user |
 | `GET` | `/api/organizations/{organizationId}` | `ORG_READ` | Read one organization |
+| `PATCH` | `/api/organizations/{organizationId}` | `ORG_UPDATE` | Rename the organization. The slug stays the same |
 | `GET` | `/api/organizations/{organizationId}/members` | `MEMBER_READ` | List members |
 | `POST` | `/api/organizations/{organizationId}/members` | `MEMBER_INVITE` | Add an existing account by email |
 | `PATCH` | `/api/organizations/{organizationId}/members/{userId}` | `MEMBER_UPDATE` | Change a member's role |

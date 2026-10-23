@@ -4,6 +4,7 @@ import com.workpilot.ai.dto.CsrfResponse;
 import com.workpilot.ai.dto.LoginRequest;
 import com.workpilot.ai.dto.MessageResponse;
 import com.workpilot.ai.dto.RegisterRequest;
+import com.workpilot.ai.dto.UpdateProfileRequest;
 import com.workpilot.ai.dto.UserProfileResponse;
 import com.workpilot.ai.security.CustomUserDetails;
 import com.workpilot.ai.security.SecurityUtils;
@@ -17,6 +18,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -57,6 +59,12 @@ public class AuthController {
     public MessageResponse logout(HttpServletRequest request, HttpServletResponse response) {
         authService.logout(request, response);
         return new MessageResponse("Logged out");
+    }
+
+    @PatchMapping("/me")
+    @Operation(summary = "Update the current user's name")
+    public UserProfileResponse updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        return authService.updateProfile(request);
     }
 
     @GetMapping("/me")
