@@ -66,7 +66,10 @@ export function getDocument(organizationId: string, documentId: string) {
   });
 }
 
-export async function downloadDocument(organizationId: string, item: OrganizationDocument) {
+export async function downloadDocument(
+  organizationId: string,
+  item: Pick<OrganizationDocument, "id" | "originalFileName">,
+) {
   const blob = await apiDownload(`/api/organizations/${organizationId}/documents/${item.id}/content`);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

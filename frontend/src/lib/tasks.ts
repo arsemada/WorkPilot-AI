@@ -1,8 +1,9 @@
-import type { TaskPriority, TaskStatus } from "@/lib/api/types";
+import type { TaskPriority, TaskRecurrence, TaskStatus } from "@/lib/api/types";
 import type { Tone } from "@/components/ui/status-badge";
 
 export const TASK_STATUSES: TaskStatus[] = ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"];
 export const TASK_PRIORITIES: TaskPriority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+export const TASK_RECURRENCES: TaskRecurrence[] = ["NONE", "WEEKLY", "MONTHLY"];
 
 const statusLabels: Record<TaskStatus, string> = {
   TODO: "To do",
@@ -18,12 +19,22 @@ const priorityLabels: Record<TaskPriority, string> = {
   URGENT: "Urgent",
 };
 
+const recurrenceLabels: Record<TaskRecurrence, string> = {
+  NONE: "Does not repeat",
+  WEEKLY: "Weekly",
+  MONTHLY: "Monthly",
+};
+
 export function statusLabel(status: TaskStatus) {
   return statusLabels[status];
 }
 
 export function priorityLabel(priority: TaskPriority) {
   return priorityLabels[priority];
+}
+
+export function recurrenceLabel(recurrence: TaskRecurrence) {
+  return recurrenceLabels[recurrence];
 }
 
 export function statusTone(status: TaskStatus): Tone {

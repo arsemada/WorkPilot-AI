@@ -15,7 +15,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -175,6 +179,152 @@ class TaskIntegrationTest {
         assertEquals(404, missing.getResponse().getStatus());
     }
 
+    @Test
+    void completingARecurringTaskCreatesTheNextCopy() throws Exception {
+        String ownerEmail = email();
+        UUID organizationId = organizationId(register(ownerEmail, "Ada", "Owner", "Recurrence Org"));
+        login(ownerEmail);
+
+        MvcResult created = submit("/api/organizations/" + organizationId + "/tasks", Map.of(
+                "title", "Weekly status",
+                "priority", "MEDIUM",
+                "dueDate", "2026-10-20",
+                "recurrence", "WEEKLY"));
+        assertEquals(201, created.getResponse().getStatus());
+        JsonNode task = objectMapper.readTree(created.getResponse().getContentAsString());
+        UUID taskId = UUID.fromString(task.get("id").asText());
+        assertEquals("WEEKLY", task.get("recurrence").asText());
+
+        MvcResult started = patch("/api/organizations/" + organizationId + "/tasks/" + taskId, Map.of("status", "IN_PROGRESS"));
+        assertEquals(200, started.getResponse().getStatus());
+        MvcResult done = patch("/api/organizations/" + organizationId + "/tasks/" + taskId, Map.of("status", "DONE"));
+        assertEquals(200, done.getResponse().getStatus());
+
+        JsonNode open = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/tasks?status=TODO&q=Weekly")
+                .getResponse().getContentAsString());
+        assertEquals(1, open.get("totalElements").asInt());
+        JsonNode next = open.get("items").get(0);
+        assertEquals("Weekly status", next.get("title").asText());
+        assertEquals("2026-10-27", next.get("dueDate").asText());
+        assertEquals("WEEKLY", next.get("recurrence").asText());
+        assertEquals(taskId.toString(), next.get("spawnedFromId").asText());
+
+        MvcResult reopen = patch("/api/organizations/" + organizationId + "/tasks/" + taskId, Map.of("status", "IN_PROGRESS"));
+        assertEquals(200, reopen.getResponse().getStatus());
+        MvcResult doneAgain = patch("/api/organizations/" + organizationId + "/tasks/" + taskId, Map.of("status", "DONE"));
+        assertEquals(200, doneAgain.getResponse().getStatus());
+        JsonNode stillOne = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/tasks?status=TODO&q=Weekly")
+                .getResponse().getContentAsString());
+        assertEquals(1, stillOne.get("totalElements").asInt());
+
+        MvcResult monthly = submit("/api/organizations/" + organizationId + "/tasks", Map.of(
+                "title", "Monthly close",
+                "dueDate", "2026-01-31",
+                "recurrence", "MONTHLY"));
+        assertEquals(201, monthly.getResponse().getStatus());
+        UUID monthlyId = UUID.fromString(objectMapper.readTree(monthly.getResponse().getContentAsString()).get("id").asText());
+        patch("/api/organizations/" + organizationId + "/tasks/" + monthlyId, Map.of("status", "IN_PROGRESS"));
+        patch("/api/organizations/" + organizationId + "/tasks/" + monthlyId, Map.of("status", "DONE"));
+        JsonNode nextMonth = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/tasks?status=TODO&q=Monthly")
+                .getResponse().getContentAsString());
+        assertEquals("2026-02-28", nextMonth.get("items").get(0).get("dueDate").asText());
+    }
+
+    @Test
+    void myWorkAndBoardGroupAssignedTasks() throws Exception {
+        String ownerEmail = email();
+        String memberEmail = email();
+        String outsiderEmail = email();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        UUID organizationId = organizationId(register(ownerEmail, "Ada", "Owner", "Work Board Org"));
+        UUID memberId = userId(register(memberEmail, "Mia", "Member", null));
+        UUID outsiderOrgId = organizationId(register(outsiderEmail, "Otto", "Outsider", "Other Work Org"));
+
+        login(ownerEmail);
+        MvcResult added = submit("/api/organizations/" + organizationId + "/members", Map.of(
+                "email", memberEmail,
+                "role", "MEMBER"));
+        assertEquals(201, added.getResponse().getStatus());
+
+        UUID ownerId = userId(objectMapper.readTree(getWithSession("/api/auth/me").getResponse().getContentAsString()));
+
+        submit("/api/organizations/" + organizationId + "/tasks", Map.of(
+                "title", "Overdue for Mia",
+                "dueDate", today.minusDays(2).toString(),
+                "assigneeId", memberId.toString()));
+        submit("/api/organizations/" + organizationId + "/tasks", Map.of(
+                "title", "Due today for Mia",
+                "dueDate", today.toString(),
+                "assigneeId", memberId.toString()));
+        submit("/api/organizations/" + organizationId + "/tasks", Map.of(
+                "title", "Started for Mia",
+                "status", "IN_PROGRESS",
+                "dueDate", today.plusDays(7).toString(),
+                "assigneeId", memberId.toString()));
+        submit("/api/organizations/" + organizationId + "/tasks", Map.of(
+                "title", "Later for Mia",
+                "dueDate", today.plusDays(14).toString(),
+                "assigneeId", memberId.toString()));
+        submit("/api/organizations/" + organizationId + "/tasks", Map.of(
+                "title", "Owner only overdue",
+                "dueDate", today.minusDays(1).toString(),
+                "assigneeId", ownerId.toString()));
+        submit("/api/organizations/" + organizationId + "/tasks", Map.of(
+                "title", "Finished for Mia",
+                "status", "DONE",
+                "assigneeId", memberId.toString()));
+
+        login(memberEmail);
+        JsonNode mine = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/my-work").getResponse().getContentAsString());
+        assertEquals(today.toString(), mine.get("today").asText());
+        assertEquals("Overdue for Mia", mine.get("overdue").get(0).get("title").asText());
+        assertEquals(1, mine.get("overdue").size());
+        assertEquals("Due today for Mia", mine.get("dueToday").get(0).get("title").asText());
+        assertEquals(1, mine.get("dueToday").size());
+        assertEquals("Started for Mia", mine.get("inProgress").get(0).get("title").asText());
+        assertEquals(1, mine.get("inProgress").size());
+        assertEquals("Later for Mia", mine.get("upNext").get(0).get("title").asText());
+        assertEquals(1, mine.get("upNext").size());
+
+        login(ownerEmail);
+        JsonNode ownerWork = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/my-work").getResponse().getContentAsString());
+        assertEquals(1, ownerWork.get("overdue").size());
+        assertEquals("Owner only overdue", ownerWork.get("overdue").get(0).get("title").asText());
+        assertEquals(0, ownerWork.get("dueToday").size());
+
+        JsonNode board = objectMapper.readTree(getWithSession(
+                "/api/organizations/" + organizationId + "/tasks/board").getResponse().getContentAsString());
+        assertTrue(titles(board.get("todo")).contains("Overdue for Mia"));
+        assertTrue(titles(board.get("todo")).contains("Owner only overdue"));
+        assertTrue(titles(board.get("inProgress")).contains("Started for Mia"));
+        assertTrue(titles(board.get("done")).contains("Finished for Mia"));
+        assertEquals(0, board.get("cancelled").size());
+
+        login(outsiderEmail);
+        MvcResult hiddenMine = getWithSession("/api/organizations/" + organizationId + "/my-work");
+        assertEquals(404, hiddenMine.getResponse().getStatus());
+        MvcResult hiddenBoard = getWithSession("/api/organizations/" + organizationId + "/tasks/board");
+        assertEquals(404, hiddenBoard.getResponse().getStatus());
+        assertEquals(200, getWithSession("/api/organizations/" + outsiderOrgId + "/my-work").getResponse().getStatus());
+
+        MvcResult unauthenticated = mockMvc.perform(get("/api/organizations/" + organizationId + "/my-work")).andReturn();
+        assertEquals(401, unauthenticated.getResponse().getStatus());
+    }
+
+    private static List<String> titles(JsonNode items) {
+        List<String> values = new ArrayList<>();
+        for (JsonNode item : items) {
+            values.add(item.get("title").asText());
+        }
+        return values;
+    }
+
     private MvcResult register(String email, String firstName, String lastName, String organizationName) throws Exception {
         Map<String, String> body = new HashMap<>();
         body.put("email", email);
@@ -251,5 +401,5 @@ class TaskIntegrationTest {
         if (result.getRequest().getSession(false) instanceof MockHttpSession activeSession) {
             session = activeSession;
         }
-    }
+    }  
 }

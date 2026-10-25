@@ -24,11 +24,28 @@ function NavIcon({ href }: { href: string }) {
       </svg>
     );
   }
+  if (href === "/my-work") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="12" cy="8" r="3" />
+        <path d="M5.5 19.2c.8-3.1 3.4-5.2 6.5-5.2s5.7 2.1 6.5 5.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
   if (href === "/tasks") {
     return (
       <svg viewBox="0 0 24 24" className={common} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path d="M9 6h11M9 12h11M9 18h11" />
         <path d="M4 6h.01M4 12h.01M4 18h.01" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (href === "/board") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <rect x="3.5" y="4.5" width="5" height="15" rx="1.2" />
+        <rect x="9.5" y="4.5" width="5" height="10" rx="1.2" />
+        <rect x="15.5" y="4.5" width="5" height="12" rx="1.2" />
       </svg>
     );
   }

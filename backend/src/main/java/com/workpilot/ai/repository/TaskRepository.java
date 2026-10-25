@@ -19,6 +19,8 @@ public interface TaskRepository extends JpaRepository<Task, UUID>, JpaSpecificat
     @Query("SELECT t FROM Task t WHERE t.id = :id AND t.organization.id = :organizationId")
     Optional<Task> findByIdAndOrganizationId(@Param("id") UUID id, @Param("organizationId") UUID organizationId);
 
+    boolean existsBySpawnedFromId(UUID spawnedFromId);
+
     @Query("SELECT t.status, COUNT(t) FROM Task t WHERE t.organization.id = :organizationId GROUP BY t.status")
     List<Object[]> countGroupedByStatus(@Param("organizationId") UUID organizationId);
 

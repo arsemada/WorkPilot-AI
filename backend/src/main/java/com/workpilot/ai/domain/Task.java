@@ -48,6 +48,13 @@ public class Task implements OrganizationScoped {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recurrence", nullable = false, length = 20)
+    private TaskRecurrence recurrence = TaskRecurrence.NONE;
+
+    @Column(name = "spawned_from_id")
+    private UUID spawnedFromId;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by_id", nullable = false)
     private User createdBy;
@@ -140,6 +147,22 @@ public class Task implements OrganizationScoped {
 
     public void setDueDate(LocalDate dueDate) {
         this.dueDate = dueDate;
+    }
+
+    public TaskRecurrence getRecurrence() {
+        return recurrence;
+    }
+
+    public void setRecurrence(TaskRecurrence recurrence) {
+        this.recurrence = recurrence == null ? TaskRecurrence.NONE : recurrence;
+    }
+
+    public UUID getSpawnedFromId() {
+        return spawnedFromId;
+    }
+
+    public void setSpawnedFromId(UUID spawnedFromId) {
+        this.spawnedFromId = spawnedFromId;
     }
 
     public User getCreatedBy() {

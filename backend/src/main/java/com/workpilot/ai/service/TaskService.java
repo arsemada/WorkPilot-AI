@@ -5,10 +5,13 @@ import com.workpilot.ai.domain.OrganizationMembership;
 import com.workpilot.ai.domain.Permission;
 import com.workpilot.ai.domain.Task;
 import com.workpilot.ai.domain.TaskPriority;
+import com.workpilot.ai.domain.TaskRecurrence;
 import com.workpilot.ai.domain.TaskStatus;
 import com.workpilot.ai.domain.User;
 import com.workpilot.ai.domain.WorkflowEventType;
 import com.workpilot.ai.dto.CreateTaskRequest;
+import com.workpilot.ai.dto.MyWorkResponse;
+import com.workpilot.ai.dto.TaskBoardResponse;
 import com.workpilot.ai.dto.TaskPageResponse;
 import com.workpilot.ai.dto.TaskResponse;
 import com.workpilot.ai.dto.UpdateTaskRequest;
@@ -28,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,6 +44,13 @@ public class TaskService {
 
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_SEARCH_LENGTH = 200;
+    private static final int MY_WORK_FETCH = 200;
+    private static final int MY_WORK_SECTION = 20;
+    private static final int BOARD_OPEN_LIMIT = 50;
+    private static final int BOARD_CLOSED_LIMIT = 20;
+    private static final Comparator<Task> OPEN_TASK_ORDER = Comparator
+            .comparing(Task::getDueDate, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(Task::getUpdatedAt, Comparator.reverseOrder());
     private static final Set<String> SORT_FIELDS = Set.of(
             "createdAt", "updatedAt", "dueDate", "title", "priority", "status");
     private static final Map<String, String> SORT_PROPERTIES = Map.of(
@@ -80,6 +92,7 @@ public class TaskService {
         task.setStatus(request.status() == null ? TaskStatus.TODO : request.status());
         task.setPriority(request.priority() == null ? TaskPriority.MEDIUM : request.priority());
         task.setDueDate(request.dueDate());
+        task.setRecurrence(request.recurrence() == null ? TaskRecurrence.NONE : request.recurrence());
         if (request.assigneeId() != null) {
             task.setAssignee(requireEligibleAssignee(organizationId, request.assigneeId()));
         }
@@ -97,6 +110,7 @@ public class TaskService {
                     saved.getId(),
                     ActivityType.TASK_COMPLETED,
                     "completed \"" + saved.getTitle() + "\"");
+            spawnNextOccurrence(saved, membership);
         }
         if (saved.getAssignee() != null) {
             publishAssignment(organizationId, membership.getUser().getId(), saved);
@@ -202,6 +216,74 @@ public class TaskService {
     }
 
     @Transactional(readOnly = true)
+    public MyWorkResponse myWork(UUID organizationId) {
+        OrganizationMembership membership = accessService.requirePermission(organizationId, Permission.RESOURCE_READ);
+        UUID userId = membership.getUser().getId();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        Specification<Task> specification = TaskSpecifications.inOrganization(organizationId)
+                .and(TaskSpecifications.hasAssignee(userId))
+                .and(TaskSpecifications.hasOpenStatus());
+        List<Task> tasks = new ArrayList<>(taskRepository.findAll(
+                specification,
+                PageRequest.of(0, MY_WORK_FETCH, Sort.by(Sort.Order.asc("dueDate"), Sort.Order.desc("updatedAt"))))
+                .getContent());
+        tasks.sort(OPEN_TASK_ORDER);
+
+        List<TaskResponse> overdue = new ArrayList<>();
+        List<TaskResponse> dueToday = new ArrayList<>();
+        List<TaskResponse> inProgress = new ArrayList<>();
+        List<TaskResponse> upNext = new ArrayList<>();
+        for (Task task : tasks) {
+            TaskResponse item = TaskResponse.fromEntity(task);
+            if (task.getDueDate() != null && task.getDueDate().isBefore(today)) {
+                overdue.add(item);
+            } else if (today.equals(task.getDueDate())) {
+                dueToday.add(item);
+            } else if (task.getStatus() == TaskStatus.IN_PROGRESS) {
+                inProgress.add(item);
+            } else {
+                upNext.add(item);
+            }
+        }
+        return new MyWorkResponse(
+                today,
+                take(overdue, MY_WORK_SECTION),
+                take(dueToday, MY_WORK_SECTION),
+                take(inProgress, MY_WORK_SECTION),
+                take(upNext, MY_WORK_SECTION));
+    }
+
+    @Transactional(readOnly = true)
+    public TaskBoardResponse board(UUID organizationId) {
+        accessService.requirePermission(organizationId, Permission.RESOURCE_READ);
+        return new TaskBoardResponse(
+                boardColumn(organizationId, TaskStatus.TODO, BOARD_OPEN_LIMIT, true),
+                boardColumn(organizationId, TaskStatus.IN_PROGRESS, BOARD_OPEN_LIMIT, true),
+                boardColumn(organizationId, TaskStatus.DONE, BOARD_CLOSED_LIMIT, false),
+                boardColumn(organizationId, TaskStatus.CANCELLED, BOARD_CLOSED_LIMIT, false));
+    }
+
+    private List<TaskResponse> boardColumn(UUID organizationId, TaskStatus status, int limit, boolean open) {
+        Specification<Task> specification = TaskSpecifications.inOrganization(organizationId)
+                .and(TaskSpecifications.hasStatus(status));
+        Sort sort = open
+                ? Sort.by(Sort.Order.asc("dueDate"), Sort.Order.desc("updatedAt"))
+                : Sort.by(Sort.Order.desc("updatedAt"));
+        List<Task> tasks = new ArrayList<>(taskRepository.findAll(specification, PageRequest.of(0, limit, sort)).getContent());
+        if (open) {
+            tasks.sort(OPEN_TASK_ORDER);
+        }
+        return tasks.stream().map(TaskResponse::fromEntity).toList();
+    }
+
+    private static List<TaskResponse> take(List<TaskResponse> items, int limit) {
+        if (items.size() <= limit) {
+            return List.copyOf(items);
+        }
+        return List.copyOf(items.subList(0, limit));
+    }
+
+    @Transactional(readOnly = true)
     public TaskResponse get(UUID organizationId, UUID taskId) {
         return TaskResponse.fromEntity(requireTask(organizationId, taskId, Permission.RESOURCE_READ).task());
     }
@@ -279,6 +361,13 @@ public class TaskService {
                 publishAssignment(organizationId, authorized.membership().getUser().getId(), task);
             }
         }
+        if (request.isRecurrencePresent()) {
+            TaskRecurrence recurrence = request.getRecurrence() == null ? TaskRecurrence.NONE : request.getRecurrence();
+            if (recurrence != task.getRecurrence()) {
+                fieldsChanged = true;
+            }
+            task.setRecurrence(recurrence);
+        }
         Task saved = taskRepository.save(task);
         if (statusChanged && saved.getStatus() == TaskStatus.DONE) {
             activityRecorder.record(
@@ -287,6 +376,7 @@ public class TaskService {
                     saved.getId(),
                     ActivityType.TASK_COMPLETED,
                     "completed \"" + saved.getTitle() + "\"");
+            spawnNextOccurrence(saved, authorized.membership());
         } else if (statusChanged) {
             activityRecorder.record(
                     authorized.membership().getOrganization(),
@@ -318,6 +408,43 @@ public class TaskService {
                 id,
                 ActivityType.TASK_DELETED,
                 "deleted \"" + title + "\"");
+    }
+
+    private void spawnNextOccurrence(Task completed, OrganizationMembership membership) {
+        TaskRecurrence recurrence = completed.getRecurrence() == null ? TaskRecurrence.NONE : completed.getRecurrence();
+        if (recurrence == TaskRecurrence.NONE) {
+            return;
+        }
+        if (taskRepository.existsBySpawnedFromId(completed.getId())) {
+            return;
+        }
+        LocalDate baseDue = completed.getDueDate() == null
+                ? LocalDate.now(ZoneOffset.UTC)
+                : completed.getDueDate();
+        Task next = new Task();
+        next.setOrganization(completed.getOrganization());
+        next.setCreatedBy(membership.getUser());
+        next.setTitle(completed.getTitle());
+        next.setDescription(completed.getDescription());
+        next.setStatus(TaskStatus.TODO);
+        next.setPriority(completed.getPriority());
+        next.setDueDate(recurrence.nextDueDate(baseDue));
+        next.setRecurrence(recurrence);
+        next.setSpawnedFromId(completed.getId());
+        next.setAssignee(completed.getAssignee());
+        Task savedNext = taskRepository.save(next);
+        activityRecorder.record(
+                membership.getOrganization(),
+                membership.getUser(),
+                savedNext.getId(),
+                ActivityType.TASK_CREATED,
+                "created the next \"" + savedNext.getTitle() + "\"");
+        if (savedNext.getAssignee() != null) {
+            publishAssignment(
+                    membership.getOrganization().getId(),
+                    membership.getUser().getId(),
+                    savedNext);
+        }
     }
 
     private void publishAssignment(UUID organizationId, UUID actorId, Task task) {

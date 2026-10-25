@@ -12,6 +12,7 @@ import {
   isOverdue,
   priorityLabel,
   priorityTone,
+  recurrenceLabel,
   statusLabel,
   statusTone,
 } from "@/lib/tasks";
@@ -23,6 +24,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { TaskForm, emptyTaskForm, type TaskFormValues } from "@/components/tasks/task-form";
+import { TaskNotesPanel } from "@/components/tasks/task-notes-panel";
 import {
   readSelectedOrganization,
   subscribeSelectedOrganization,
@@ -166,6 +168,7 @@ export function TasksWorkspace() {
       priority: task.priority,
       dueDate: task.dueDate ?? "",
       assigneeId: task.assigneeId ?? "",
+      recurrence: task.recurrence ?? "NONE",
     });
     setFieldErrors({});
     setFormError(null);
@@ -191,6 +194,7 @@ export function TasksWorkspace() {
       priority: form.priority,
       dueDate: form.dueDate || null,
       assigneeId: form.assigneeId || null,
+      recurrence: form.recurrence,
     };
 
     setSubmitting(true);
@@ -442,6 +446,7 @@ export function TasksWorkspace() {
               cell: (task) => (
                 <span className={isOverdue(task.dueDate, task.status) ? "font-medium text-red-800" : "text-slate-800"}>
                   {formatDueDate(task.dueDate)}
+                  {task.recurrence && task.recurrence !== "NONE" ? ` · ${recurrenceLabel(task.recurrence)}` : ""}
                 </span>
               ),
             },
@@ -499,6 +504,7 @@ export function TasksWorkspace() {
       <Dialog
         open={selected !== null && editor === null}
         title={selected?.title ?? "Task"}
+        className="max-w-xl"
         onClose={() => setSelected(null)}
       >
         {selected ? (
@@ -506,6 +512,9 @@ export function TasksWorkspace() {
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone={statusTone(selected.status)}>{statusLabel(selected.status)}</StatusBadge>
               <StatusBadge tone={priorityTone(selected.priority)}>{priorityLabel(selected.priority)}</StatusBadge>
+              {selected.recurrence && selected.recurrence !== "NONE" ? (
+                <StatusBadge tone="info">{recurrenceLabel(selected.recurrence)}</StatusBadge>
+              ) : null}
             </div>
             <p>{selected.description || "No description."}</p>
             <dl className="grid gap-2 sm:grid-cols-2">
@@ -516,6 +525,10 @@ export function TasksWorkspace() {
                 </dd>
               </div>
               <div>
+                <dt className="font-medium text-slate-950">Repeats</dt>
+                <dd>{recurrenceLabel(selected.recurrence ?? "NONE")}</dd>
+              </div>
+              <div>
                 <dt className="font-medium text-slate-950">Assignee</dt>
                 <dd>{selected.assigneeName ?? "Unassigned"}</dd>
               </div>
@@ -524,6 +537,15 @@ export function TasksWorkspace() {
                 <dd>{selected.createdByName}</dd>
               </div>
             </dl>
+            {user ? (
+              <TaskNotesPanel
+                organizationId={organizationId}
+                task={selected}
+                currentUserId={user.id}
+                canUpdate={canUpdate}
+                canDelete={canDelete}
+              />
+            ) : null}
             <div className="flex flex-wrap justify-end gap-2">
               {canDelete ? (
                 <Button variant="danger" onClick={() => setPendingDelete(selected)}>

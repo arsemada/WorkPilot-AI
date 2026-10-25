@@ -75,6 +75,8 @@ export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
 
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
+export type TaskRecurrence = "NONE" | "WEEKLY" | "MONTHLY";
+
 export type Task = {
   id: string;
   organizationId: string;
@@ -83,6 +85,8 @@ export type Task = {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: string | null;
+  recurrence: TaskRecurrence;
+  spawnedFromId: string | null;
   createdById: string;
   createdByName: string;
   assigneeId: string | null;
@@ -100,6 +104,21 @@ export type TaskPage = {
   totalPages: number;
 };
 
+export type MyWork = {
+  today: string;
+  overdue: Task[];
+  dueToday: Task[];
+  inProgress: Task[];
+  upNext: Task[];
+};
+
+export type TaskBoard = {
+  todo: Task[];
+  inProgress: Task[];
+  done: Task[];
+  cancelled: Task[];
+};
+
 export type TaskWriteRequest = {
   title: string;
   description?: string | null;
@@ -107,6 +126,7 @@ export type TaskWriteRequest = {
   priority?: TaskPriority;
   dueDate?: string | null;
   assigneeId?: string | null;
+  recurrence?: TaskRecurrence;
 };
 
 export type OrganizationDocument = {
@@ -166,8 +186,33 @@ export type ActivityType =
   | "TASK_STATUS_CHANGED"
   | "TASK_COMPLETED"
   | "TASK_DELETED"
+  | "TASK_COMMENTED"
+  | "TASK_DOCUMENT_LINKED"
   | "WORKFLOW_SUCCEEDED"
   | "WORKFLOW_FAILED";
+
+export type TaskComment = {
+  id: string;
+  taskId: string;
+  organizationId: string;
+  body: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+};
+
+export type TaskDocumentLink = {
+  id: string;
+  taskId: string;
+  organizationId: string;
+  documentId: string;
+  title: string;
+  originalFileName: string;
+  contentType: string;
+  attachedById: string;
+  attachedByName: string;
+  createdAt: string;
+};
 
 export type DashboardSummary = {
   organizationId: string;

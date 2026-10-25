@@ -21,6 +21,10 @@ public final class TaskSpecifications {
         return (root, query, cb) -> cb.equal(root.get("status"), status);
     }
 
+    public static Specification<Task> hasOpenStatus() {
+        return (root, query, cb) -> root.get("status").in(TaskStatus.TODO, TaskStatus.IN_PROGRESS);
+    }
+
     public static Specification<Task> hasPriority(TaskPriority priority) {
         return (root, query, cb) -> cb.equal(root.get("priority"), priority);
     }

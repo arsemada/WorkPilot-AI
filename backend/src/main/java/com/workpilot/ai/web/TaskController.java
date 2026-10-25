@@ -3,6 +3,7 @@ package com.workpilot.ai.web;
 import com.workpilot.ai.domain.TaskPriority;
 import com.workpilot.ai.domain.TaskStatus;
 import com.workpilot.ai.dto.CreateTaskRequest;
+import com.workpilot.ai.dto.TaskBoardResponse;
 import com.workpilot.ai.dto.TaskPageResponse;
 import com.workpilot.ai.dto.TaskResponse;
 import com.workpilot.ai.dto.UpdateTaskRequest;
@@ -63,6 +64,12 @@ public class TaskController {
         return taskService.list(
                 organizationId, status, priority, assigneeId, unassigned,
                 dueAfter, dueBefore, q, page, size, sort, direction);
+    }
+
+    @GetMapping("/board")
+    @Operation(summary = "List tasks grouped by status for a board")
+    public TaskBoardResponse board(@PathVariable UUID organizationId) {
+        return taskService.board(organizationId);
     }
 
     @GetMapping("/{taskId}")

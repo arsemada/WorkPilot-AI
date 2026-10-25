@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/api/client";
-import type { Membership, Task, TaskListQuery, TaskPage, TaskWriteRequest } from "@/lib/api/types";
+import type { Membership, MyWork, Task, TaskBoard, TaskListQuery, TaskPage, TaskWriteRequest } from "@/lib/api/types";
 
 function queryString(query: TaskListQuery) {
   const params = new URLSearchParams();
@@ -42,6 +42,18 @@ export function updateTask(organizationId: string, taskId: string, body: Partial
 export function deleteTask(organizationId: string, taskId: string) {
   return apiRequest<void>(`/api/organizations/${organizationId}/tasks/${taskId}`, {
     method: "DELETE",
+    session: "required",
+  });
+}
+
+export function fetchMyWork(organizationId: string) {
+  return apiRequest<MyWork>(`/api/organizations/${organizationId}/my-work`, {
+    session: "required",
+  });
+}
+
+export function fetchTaskBoard(organizationId: string) {
+  return apiRequest<TaskBoard>(`/api/organizations/${organizationId}/tasks/board`, {
     session: "required",
   });
 }

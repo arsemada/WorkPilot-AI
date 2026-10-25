@@ -2,6 +2,7 @@ package com.workpilot.ai.dto;
 
 import com.workpilot.ai.domain.Task;
 import com.workpilot.ai.domain.TaskPriority;
+import com.workpilot.ai.domain.TaskRecurrence;
 import com.workpilot.ai.domain.TaskStatus;
 import com.workpilot.ai.domain.User;
 
@@ -19,6 +20,8 @@ public record TaskResponse(
         TaskStatus status,
         TaskPriority priority,
         LocalDate dueDate,
+        TaskRecurrence recurrence,
+        UUID spawnedFromId,
         UUID createdById,
         String createdByName,
         UUID assigneeId,
@@ -41,6 +44,8 @@ public record TaskResponse(
                 task.getStatus(),
                 task.getPriority(),
                 task.getDueDate(),
+                task.getRecurrence() == null ? TaskRecurrence.NONE : task.getRecurrence(),
+                task.getSpawnedFromId(),
                 creator.getId(),
                 creator.getFullName(),
                 assignee == null ? null : assignee.getId(),

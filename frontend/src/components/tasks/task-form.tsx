@@ -1,8 +1,8 @@
 "use client";
 
 import { useId, type FormEvent } from "react";
-import type { Membership, TaskPriority, TaskStatus } from "@/lib/api/types";
-import { TASK_PRIORITIES, priorityLabel, statusLabel } from "@/lib/tasks";
+import type { Membership, TaskPriority, TaskRecurrence, TaskStatus } from "@/lib/api/types";
+import { TASK_PRIORITIES, TASK_RECURRENCES, priorityLabel, recurrenceLabel, statusLabel } from "@/lib/tasks";
 import { Form, FormBanner, SelectField, TextAreaField, TextField } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
@@ -13,6 +13,7 @@ export type TaskFormValues = {
   priority: TaskPriority;
   dueDate: string;
   assigneeId: string;
+  recurrence: TaskRecurrence;
 };
 
 export const emptyTaskForm: TaskFormValues = {
@@ -22,6 +23,7 @@ export const emptyTaskForm: TaskFormValues = {
   priority: "MEDIUM",
   dueDate: "",
   assigneeId: "",
+  recurrence: "NONE",
 };
 
 export function TaskForm({
@@ -105,20 +107,38 @@ export function TaskForm({
           onChange={(event) => onChange({ ...values, dueDate: event.target.value })}
         />
         <SelectField
-          id={`${prefix}-assignee`}
-          label="Assignee"
-          value={values.assigneeId}
-          error={fieldErrors.assigneeId}
-          onChange={(event) => onChange({ ...values, assigneeId: event.target.value })}
+          id={`${prefix}-recurrence`}
+          label="Repeats"
+          value={values.recurrence}
+          error={fieldErrors.recurrence}
+          onChange={(event) => onChange({ ...values, recurrence: event.target.value as TaskRecurrence })}
         >
-          <option value="">Unassigned</option>
-          {members.map((member) => (
-            <option key={member.userId} value={member.userId}>
-              {member.userFullName}
+          {TASK_RECURRENCES.map((recurrence) => (
+            <option key={recurrence} value={recurrence}>
+              {recurrenceLabel(recurrence)}
             </option>
           ))}
         </SelectField>
       </div>
+      <SelectField
+        id={`${prefix}-assignee`}
+        label="Assignee"
+        value={values.assigneeId}
+        error={fieldErrors.assigneeId}
+        onChange={(event) => onChange({ ...values, assigneeId: event.target.value })}
+      >
+        <option value="">Unassigned</option>
+        {members.map((member) => (
+          <option key={member.userId} value={member.userId}>
+            {member.userFullName}
+          </option>
+        ))}
+      </SelectField>
+      {values.recurrence !== "NONE" ? (
+        <p className="text-sm text-slate-600">
+          When this task is marked done, WorkPilot creates the next copy with the due date moved forward.
+        </p>
+      ) : null}
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onCancel}>
           Cancel

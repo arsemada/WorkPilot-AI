@@ -229,9 +229,14 @@ export function DashboardHome() {
             <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-slate-950">Recent tasks</h2>
-                <Link href="/tasks" className="text-sm font-semibold text-blue-800 hover:text-blue-950">
-                  Open tasks
-                </Link>
+                <div className="flex flex-wrap gap-3">
+                  <Link href="/my-work" className="text-sm font-semibold text-blue-800 hover:text-blue-950">
+                    My work
+                  </Link>
+                  <Link href="/tasks" className="text-sm font-semibold text-blue-800 hover:text-blue-950">
+                    Open tasks
+                  </Link>
+                </div>
               </div>
               <DataTable
                 columns={recentTaskColumns}

@@ -1,6 +1,7 @@
 package com.workpilot.ai.dto;
 
 import com.workpilot.ai.domain.TaskPriority;
+import com.workpilot.ai.domain.TaskRecurrence;
 import com.workpilot.ai.domain.TaskStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -17,6 +18,7 @@ public record CreateTaskRequest(
         TaskStatus status,
         TaskPriority priority,
         LocalDate dueDate,
-        UUID assigneeId
+        UUID assigneeId,
+        TaskRecurrence recurrence
 ) {
 }

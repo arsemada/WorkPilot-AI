@@ -204,7 +204,7 @@ public class TaskAssistantTools {
                 }
             }
         }
-        CreateTaskRequest request = new CreateTaskRequest(title, description, null, priority, dueDate, null);
+        CreateTaskRequest request = new CreateTaskRequest(title, description, null, priority, dueDate, null, null);
         ObjectNode stored = objectMapper.createObjectNode();
         stored.put("title", title);
         if (description != null) {

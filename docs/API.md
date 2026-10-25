@@ -117,9 +117,17 @@ Tasks are organization resources. A caller who is not a member receives `404`. A
 | --- | --- | --- | --- |
 | `POST` | `/api/organizations/{organizationId}/tasks` | `RESOURCE_CREATE` | Create a task. Status defaults to `TODO` and priority to `MEDIUM` |
 | `GET` | `/api/organizations/{organizationId}/tasks` | `RESOURCE_READ` | List tasks with filters, search, sorting, and pagination |
+| `GET` | `/api/organizations/{organizationId}/tasks/board` | `RESOURCE_READ` | List tasks grouped by status. Open columns include up to 50 tasks. Done and cancelled include the 20 most recently updated |
+| `GET` | `/api/organizations/{organizationId}/my-work` | `RESOURCE_READ` | List the signed-in member's open assigned tasks, grouped as overdue, due today, in progress, and up next |
 | `GET` | `/api/organizations/{organizationId}/tasks/{taskId}` | `RESOURCE_READ` | Read one task |
 | `PATCH` | `/api/organizations/{organizationId}/tasks/{taskId}` | `RESOURCE_UPDATE` | Update the fields present in the body |
 | `DELETE` | `/api/organizations/{organizationId}/tasks/{taskId}` | `RESOURCE_DELETE` | Delete a task |
+| `GET` | `/api/organizations/{organizationId}/tasks/{taskId}/comments` | `RESOURCE_READ` | List comments on a task |
+| `POST` | `/api/organizations/{organizationId}/tasks/{taskId}/comments` | `RESOURCE_UPDATE` | Add a comment. Body is 1–2000 characters |
+| `DELETE` | `/api/organizations/{organizationId}/tasks/{taskId}/comments/{commentId}` | Author, or `RESOURCE_DELETE` | Delete a comment |
+| `GET` | `/api/organizations/{organizationId}/tasks/{taskId}/documents` | `RESOURCE_READ` | List organization documents linked to a task |
+| `POST` | `/api/organizations/{organizationId}/tasks/{taskId}/documents` | `RESOURCE_UPDATE` | Link an existing organization document. A task can have 20 links |
+| `DELETE` | `/api/organizations/{organizationId}/tasks/{taskId}/documents/{documentId}` | `RESOURCE_UPDATE` | Remove a document link |
 
 Create body:
 
@@ -130,11 +138,12 @@ Create body:
   "status": "TODO",
   "priority": "HIGH",
   "dueDate": "2026-11-01",
-  "assigneeId": "00000000-0000-0000-0000-000000000000"
+  "assigneeId": "00000000-0000-0000-0000-000000000000",
+  "recurrence": "WEEKLY"
 }
 ```
 
-`description`, `status`, `priority`, `dueDate`, and `assigneeId` are optional. `assigneeId` must be an active member of the same organization.
+`description`, `status`, `priority`, `dueDate`, `assigneeId`, and `recurrence` are optional. `assigneeId` must be an active member of the same organization. `recurrence` is `NONE` (default), `WEEKLY`, or `MONTHLY`. When a recurring task becomes `DONE`, the API creates the next open copy with the same title, description, priority, assignee, and recurrence, advances the due date by one week or one month, and sets `spawnedFromId` on the new task. Completing the same task again does not create another copy.
 
 List query parameters:
 
@@ -160,7 +169,7 @@ Status changes on update:
 | `DONE` | `IN_PROGRESS` |
 | `CANCELLED` | `TODO` |
 
-A patch may keep the current status. Any other change returns `400`. Send `null` for `description`, `dueDate`, or `assigneeId` to clear that field. Omitted fields stay unchanged.
+A patch may keep the current status. Any other change returns `400`. Send `null` for `description`, `dueDate`, or `assigneeId` to clear that field. `recurrence` may be set to `NONE`, `WEEKLY`, or `MONTHLY`. Omitted fields stay unchanged.
 
 ### Documents
 

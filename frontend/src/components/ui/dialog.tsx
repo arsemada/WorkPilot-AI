@@ -2,16 +2,18 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "@/lib/cn";
 
 type DialogProps = {
   open: boolean;
   title: string;
   description?: string;
+  className?: string;
   onClose: () => void;
   children: ReactNode;
 };
 
-export function Dialog({ open, title, description, onClose, children }: DialogProps) {
+export function Dialog({ open, title, description, className, onClose, children }: DialogProps) {
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -61,7 +63,7 @@ export function Dialog({ open, title, description, onClose, children }: DialogPr
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className="panel relative w-full max-w-md p-6 outline-none"
+        className={cn("panel relative w-full p-6 outline-none", className ?? "max-w-md")}
       >
         <h2 id={titleId} className="text-lg font-semibold text-slate-950">
           {title}

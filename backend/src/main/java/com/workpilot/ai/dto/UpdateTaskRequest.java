@@ -1,6 +1,7 @@
 package com.workpilot.ai.dto;
 
 import com.workpilot.ai.domain.TaskPriority;
+import com.workpilot.ai.domain.TaskRecurrence;
 import com.workpilot.ai.domain.TaskStatus;
 
 import java.time.LocalDate;
@@ -18,6 +19,7 @@ public class UpdateTaskRequest {
     private TaskPriority priority;
     private LocalDate dueDate;
     private UUID assigneeId;
+    private TaskRecurrence recurrence;
 
     private boolean titlePresent;
     private boolean descriptionPresent;
@@ -25,6 +27,7 @@ public class UpdateTaskRequest {
     private boolean priorityPresent;
     private boolean dueDatePresent;
     private boolean assigneePresent;
+    private boolean recurrencePresent;
 
     public String getTitle() {
         return title;
@@ -80,6 +83,15 @@ public class UpdateTaskRequest {
         this.assigneePresent = true;
     }
 
+    public TaskRecurrence getRecurrence() {
+        return recurrence;
+    }
+
+    public void setRecurrence(TaskRecurrence recurrence) {
+        this.recurrence = recurrence;
+        this.recurrencePresent = true;
+    }
+
     public boolean isTitlePresent() {
         return titlePresent;
     }
@@ -102,5 +114,9 @@ public class UpdateTaskRequest {
 
     public boolean isAssigneePresent() {
         return assigneePresent;
+    }
+
+    public boolean isRecurrencePresent() {
+        return recurrencePresent;
     }
 }

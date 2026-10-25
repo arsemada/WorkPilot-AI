@@ -6,6 +6,10 @@ WorkPilot AI is a multi-tenant operations workspace. A person registers an accou
 
 - Accounts, organizations, and owner, admin, and member roles
 - Task list with status, priority, assignee, due date, search, and filters
+- My work inbox for tasks assigned to the signed-in member
+- Status board for the organization's tasks
+- Task comments and links to organization documents
+- Weekly or monthly recurring tasks that create the next copy when marked done
 - Document upload, text extraction, chunking, and pgvector indexing
 - Assistant conversations that can look up tasks, confirm a new task, and cite indexed documents
 - Workflow rules for assignment notices, overdue tasks, document processing, optional summaries, and a daily activity digest
@@ -80,6 +84,8 @@ Flyway owns the schema. Hibernate validates it and does not create or drop table
 | `workflow_rules` | One rule per organization and event |
 | `workflow_executions` | Run status, attempt count, and the latest error |
 | `notifications` | In-app notice for one user |
+| `task_comments` | Comment on a task |
+| `task_document_links` | Organization document linked to a task |
 
 Organization-owned rows include `organization_id`. A caller who is not a member receives 404 for that organization's resources.
 
@@ -96,6 +102,8 @@ Organization-owned rows include `organization_id`. A caller who is not a member 
 | `V9__pgvector.sql` | PostgreSQL `vector` extension and similarity index |
 | `V10__assistant_tool_calls.sql` | Assistant task lookup and confirmed task creation |
 | `V11__workflows.sql` | Workflow rules, execution history, and in-app notifications |
+| `V12__task_notes.sql` | Task comments, document links, and comment activity types |
+| `V13__task_recurrence.sql` | Weekly and monthly recurrence on tasks |
 
 ## Repository structure
 
@@ -353,7 +361,9 @@ Public routes are `/login` and `/register`. `/` sends a signed-in user to `/dash
 | Route | Page |
 | --- | --- |
 | `/dashboard` | Task counts, completion trend, recent tasks, and recent activity |
-| `/tasks` | Task list, filters, create, edit, status changes, and delete |
+| `/my-work` | Open tasks assigned to the signed-in member, grouped by due date |
+| `/tasks` | Task list, filters, create, edit, comments, document links, status changes, and delete |
+| `/board` | Tasks grouped by status |
 | `/documents` | Upload, search, download, edit, and delete organization files |
 | `/assistant` | Conversations with the assistant |
 | `/workflows` | Workflow rules, run history, and notifications |
